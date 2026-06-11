@@ -268,8 +268,11 @@ test('ConfigSchemaValidator - 自定义规则', async (t) => {
     if (major < 18) {
       assert.ok(nodeCheck !== undefined, 'Node版本过低应产生error');
     } else {
-      // Node >= 18，该规则静默通过
-      assert.ok(true);
+      // Node >= 18，该规则静默通过，但验证结果结构应完整
+      assert.ok(result, '验证结果对象应存在');
+      assert.strictEqual(typeof result.valid, 'boolean', '结果应包含valid字段');
+      assert.ok(Array.isArray(result.errors), '结果应包含errors数组');
+      assert.ok(Array.isArray(result.warnings), '结果应包含warnings数组');
     }
   });
 

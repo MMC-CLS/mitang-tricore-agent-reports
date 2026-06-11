@@ -58,7 +58,7 @@ function registerRoutes(server) {
         format = body.format || 'wav';
       } else if (contentType.includes('multipart/form-data')) {
         // Multipart: parse the file upload manually
-        const body = await this._readRawBody(req);
+        const body = await _readRawBody(req);
         const boundary = contentType.split('boundary=')[1];
         if (boundary) {
           const parsed = _parseMultipart(body, boundary);
@@ -75,7 +75,7 @@ function registerRoutes(server) {
         }
       } else {
         // Raw binary body
-        audioBuffer = await this._readRawBody(req);
+        audioBuffer = await _readRawBody(req);
         format = (req.headers['x-audio-format'] || 'wav').toLowerCase();
       }
 
@@ -94,6 +94,7 @@ function registerRoutes(server) {
         provider: availability.provider,
       });
     } catch (err) {
+      const isProduction = process.env.NODE_ENV === 'production';
       const statusCode = err.message.includes('not found') ? 404
         : err.message.includes('too large') || err.message.includes('empty') ? 400
         : err.message.includes('not available') || err.message.includes('No API key') ? 503
@@ -101,7 +102,7 @@ function registerRoutes(server) {
 
       this._sendJson(res, statusCode, {
         error: 'ASR failed',
-        detail: err.message,
+        detail: isProduction ? 'An internal error occurred' : err.message,
         code: statusCode === 503 ? 'ASR_UNAVAILABLE'
           : statusCode === 400 ? 'ASR_INVALID_INPUT'
           : 'ASR_ERROR',
@@ -180,6 +181,7 @@ function registerRoutes(server) {
         });
       }
     } catch (err) {
+      const isProduction = process.env.NODE_ENV === 'production';
       const statusCode = err.message.includes('required') ? 400
         : err.message.includes('too long') ? 400
         : err.message.includes('not available') || err.message.includes('No API key') ? 503
@@ -188,7 +190,7 @@ function registerRoutes(server) {
 
       this._sendJson(res, statusCode, {
         error: 'TTS failed',
-        detail: err.message,
+        detail: isProduction ? 'An internal error occurred' : err.message,
         code: statusCode === 503 ? 'TTS_UNAVAILABLE'
           : statusCode === 400 ? 'TTS_INVALID_INPUT'
           : 'TTS_ERROR',
@@ -233,7 +235,8 @@ function registerRoutes(server) {
       const result = await browser.execute(mappedAction, params || {});
       this._sendJson(res, 200, { success: true, action, result });
     } catch (err) {
-      this._sendJson(res, 500, { success: false, action, error: err.message });
+      const isProduction = process.env.NODE_ENV === 'production';
+      this._sendJson(res, 500, { success: false, action, error: isProduction ? 'Browser action failed' : err.message });
     }
   });
 }

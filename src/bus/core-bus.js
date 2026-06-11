@@ -49,6 +49,8 @@ const BUS_EVENT = Object.freeze({
   SCHEDULER_MODE_CHANGE: 'scheduler:mode_change',
   // 调度器→全局：TICK事件
   SCHEDULER_TICK: 'scheduler:tick',
+  // 意识→全局：TICK完成（v1.0新增）
+  CONSCIOUSNESS_TICK_COMPLETE: 'consciousness:tick_complete',
   // 系统级：错误
   SYSTEM_ERROR: 'system:error',
   // 系统级：警告
@@ -59,11 +61,13 @@ const BUS_EVENT = Object.freeze({
 
 // ── 事件优先级 ──
 const EVENT_PRIORITY = Object.freeze({
-  CRITICAL: 0,   // 错误、安全告警
-  HIGH: 1,       // 任务完成/失败
-  NORMAL: 2,     // 正常跨核消息
-  LOW: 3,        // 整合完成、模式切换
-  TRACE: 4,      // 调试追踪
+  CRITICAL: 0,          // 错误、安全告警 — 立即同步处理
+  PRIORITY_IMMEDIATE: 0, // v2.0: CRITICAL别名，语义更明确
+  HIGH: 1,              // 任务完成/失败 — 立即同步处理
+  PRIORITY_HIGH: 1,      // v2.0: HIGH别名
+  NORMAL: 2,            // 正常跨核消息 — 异步队列
+  LOW: 3,               // 整合完成、模式切换 — 异步队列
+  TRACE: 4,             // 调试追踪 — 异步队列
 });
 
 class CoreBus extends EventEmitter {
@@ -97,6 +101,18 @@ class CoreBus extends EventEmitter {
 
     // ── 跨核调用计时 ──
     this._pendingRequests = new Map(); // requestId → { traceId, startTime, core, type }
+
+    // ── v2.0: 事件优先级队列 ──
+    // 按 EVENT_PRIORITY 分级处理：CRITICAL(0) > HIGH(1) > NORMAL(2) > LOW(3) > TRACE(4)
+    this._priorityQueues = [
+      [], // CRITICAL (0)
+      [], // HIGH (1)
+      [], // NORMAL (2)
+      [], // LOW (3)
+      [], // TRACE (4)
+    ];
+    this._priorityProcessing = false; // 防止并发处理
+    this._priorityBatchSize = 32;      // 每轮最多处理事件数，防止饥饿
   }
 
   // ═══════════════════════════════════════
@@ -104,7 +120,14 @@ class CoreBus extends EventEmitter {
   // ═══════════════════════════════════════
 
   /**
-   * 发送跨核事件（唯一合法的跨核通信方式）
+   * 发送跨核事件（唯一合法的跨核通信方式，v2.0: 优先级队列）
+   *
+   * v2.0 优先级队列策略：
+   *   - PRIORITY_IMMEDIATE (CRITICAL): 立即同步处理，不进入队列
+   *   - PRIORITY_HIGH: 进入高优先级队列，优先于 NORMAL/LOW
+   *   - NORMAL/LOW/TRACE: 按序排队，批处理
+   *   - 队列满时触发 _flushPriorityQueue 批量处理
+   *
    * @param {string} eventType - BUS_EVENT中的类型
    * @param {Object} data - 事件数据
    * @param {Object} meta - { source, traceId?, priority? }
@@ -113,6 +136,7 @@ class CoreBus extends EventEmitter {
   dispatch(eventType, data = {}, meta = {}) {
     const eventId = `evt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const timestamp = Date.now();
+    const priority = meta.priority ?? EVENT_PRIORITY.NORMAL;
 
     const event = {
       id: eventId,
@@ -121,7 +145,7 @@ class CoreBus extends EventEmitter {
       meta: {
         source: meta.source || 'unknown',
         traceId: meta.traceId || null,
-        priority: meta.priority ?? EVENT_PRIORITY.NORMAL,
+        priority,
         timestamp,
         sequence: this._stats.totalEvents,
       },
@@ -163,14 +187,66 @@ class CoreBus extends EventEmitter {
     // 更新统计
     this._updateStats(event);
 
-    // 分发到订阅者
-    this._deliver(event);
+    // ── v2.0: 按优先级分发 ──
+    if (priority <= EVENT_PRIORITY.HIGH) {
+      // CRITICAL (0) 和 HIGH (1) 事件立即处理，不走队列
+      this._deliver(event);
+    } else {
+      // NORMAL (2), LOW (3), TRACE (4) 事件入队，批量异步处理
+      const queueIdx = Math.min(priority, this._priorityQueues.length - 1);
+      this._priorityQueues[queueIdx].push(event);
 
-    // 同时emit给外部监听者
+      // 队列积压达到阈值时触发刷新
+      const totalQueued = this._priorityQueues.reduce((sum, q) => sum + q.length, 0);
+      if (totalQueued >= this._priorityBatchSize) {
+        this._flushPriorityQueue();
+      }
+    }
+
+    // 同时emit给外部监听者（保留同步emit，向后兼容）
     this.emit(eventType, event);
     this.emit('*', event);  // 全局监听
 
     return eventId;
+  }
+
+  /**
+   * 刷新优先级队列（v2.0新增）
+   *
+   * 按优先级从高到低批量处理队列中的事件。
+   * 使用 setImmediate 异步执行，防止饥饿高优先级事件。
+   * 每轮最多处理 _priorityBatchSize 个事件，防止事件循环阻塞。
+   */
+  _flushPriorityQueue() {
+    if (this._priorityProcessing) return; // 已在处理中
+    this._priorityProcessing = true;
+
+    setImmediate(() => {
+      try {
+        let processed = 0;
+        // 从高优先级(0)到低优先级(4)依次处理
+        for (let pri = 0; pri < this._priorityQueues.length && processed < this._priorityBatchSize; pri++) {
+          const queue = this._priorityQueues[pri];
+          while (queue.length > 0 && processed < this._priorityBatchSize) {
+            const event = queue.shift();
+            this._deliver(event);
+            processed++;
+          }
+        }
+
+        // 如果还有剩余事件，安排下一轮处理
+        const remaining = this._priorityQueues.reduce((sum, q) => sum + q.length, 0);
+        if (remaining > 0) {
+          setImmediate(() => {
+            this._priorityProcessing = false;
+            this._flushPriorityQueue();
+          });
+        }
+      } catch (e) {
+        // 队列处理异常不应丢失事件
+      }
+      this._priorityProcessing = false;
+    });
   }
 
   // ═══════════════════════════════════════
@@ -501,28 +577,45 @@ class CoreBus extends EventEmitter {
     }
   }
 
+  /**
+   * 分发事件到订阅者（v2.0: 异步化，避免订阅者阻塞事件循环）
+   *
+   * 异步化策略：
+   *   - 订阅者回调通过 setImmediate 异步执行
+   *   - 每个订阅者独立 try/catch，单个失败不影响其他
+   *   - 同步 emit 保留用于向后兼容（EventEmitter.on 的监听者）
+   *   - 按通道分发和按事件类型分发的订阅者均异步化
+   */
   _deliver(event) {
-    // 按通道分发
+    // 按通道分发（异步化）
     const source = event.meta?.source;
     if (source && this._subscriptions.has(source)) {
       for (const callback of this._subscriptions.get(source)) {
-        try {
-          callback(event);
-        } catch (e) {
-          // 订阅者出错不影响其他订阅者
-        }
+        // ── v2.0: setImmediate 异步执行，不阻塞当前 dispatch 调用栈 ──
+        setImmediate(() => {
+          try {
+            callback(event);
+          } catch (e) {
+            // v1.0: 记录订阅者异常（不再静默吞错误）
+            this._logSubscriberError(source, event.type, e);
+          }
+        });
       }
     }
 
-    // 按事件类型分发（从事件类型推断目标通道）
+    // 按事件类型分发（从事件类型推断目标通道，异步化）
     const targetChannel = this._inferTargetChannel(event.type);
     if (targetChannel && targetChannel !== source && this._subscriptions.has(targetChannel)) {
       for (const callback of this._subscriptions.get(targetChannel)) {
-        try {
-          callback(event);
-        } catch (e) {
-          // 不影响
-        }
+        // ── v2.0: setImmediate 异步执行 ──
+        setImmediate(() => {
+          try {
+            callback(event);
+          } catch (e) {
+            // v1.0: 记录订阅者异常（不再静默吞错误）
+            this._logSubscriberError(targetChannel, event.type, e);
+          }
+        });
       }
     }
   }
@@ -533,6 +626,31 @@ class CoreBus extends EventEmitter {
     if (eventType.startsWith('evolution:')) return CHANNEL.EVOLUTION;
     if (eventType.startsWith('scheduler:')) return CHANNEL.SCHEDULER;
     return CHANNEL.SYSTEM;
+  }
+
+  /**
+   * v1.0: 记录订阅者异常（不再静默吞错误）
+   *
+   * 将订阅者抛出的异常写入事件日志并递增错误计数，
+   * 确保调试时能追踪到订阅者代码中的bug。
+   *
+   * @param {string} channel - 订阅通道
+   * @param {string} eventType - 事件类型
+   * @param {Error} error - 订阅者抛出的异常
+   */
+  _logSubscriberError(channel, eventType, error) {
+    const errorEntry = {
+      type: 'subscriber_error',
+      channel,
+      eventType,
+      error: error.message,
+      stack: error.stack?.substring(0, 500) || '',
+      timestamp: Date.now(),
+    };
+    this._eventLog.push(errorEntry);
+    this._stats.errorCount++;
+    // 同时emit错误事件，供外部监听
+    this.emit('subscriber_error', errorEntry);
   }
 }
 

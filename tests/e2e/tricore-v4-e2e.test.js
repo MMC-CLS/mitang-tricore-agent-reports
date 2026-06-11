@@ -44,7 +44,7 @@ test('E2E: LLM Provider 不可用时的降级模式', async (t) => {
     });
 
     assert.ok(agent, '无Provider时Agent应可构造');
-    assert.strictEqual(VERSION, '4.0.0', '版本应为4.0.0');
+    assert.strictEqual(VERSION, '1.0.0', '版本应为4.0.0');
 
     // 验证核心模块仍然初始化
     assert.ok(agent._bus, 'CoreBus应初始化');
@@ -529,7 +529,7 @@ test('E2E: 版权标识持久性', async (t) => {
   const { TriCoreAgent, VERSION, BRAND_NAME, CODENAME } = require('../../src/index');
 
   await t.test('版本和品牌标识正确', () => {
-    assert.strictEqual(VERSION, '4.0.0', '版本号应为4.0.0');
+    assert.strictEqual(VERSION, '1.0.0', '版本号应为4.0.0');
     assert.strictEqual(BRAND_NAME, '蜜糖 TriCore Agent', '品牌名应正确');
     assert.strictEqual(CODENAME, 'MitangTriCore', '代号应正确');
   });
@@ -576,7 +576,7 @@ test('E2E: 版权标识持久性', async (t) => {
     });
 
     const status = agent.getStatus();
-    assert.strictEqual(status.version, '4.0.0', 'status.version应为4.0.0');
+    assert.strictEqual(status.version, '1.0.0', 'status.version应为4.0.0');
     assert.strictEqual(status.codename, 'MitangTriCore', 'status.codename应正确');
     assert.strictEqual(status.brandName, '蜜糖 TriCore Agent', 'status.brandName应正确');
 

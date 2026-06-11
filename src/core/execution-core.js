@@ -109,6 +109,13 @@ class ExecutionCore extends EventEmitter {
     this._maxRetries = options.maxRetries ?? 3;
     this._sandboxDir = options.sandboxDir || path.join(process.cwd(), 'data', 'sandbox');
 
+    // ── v2.0: 单步执行超时配置 ──
+    this._actionTimeout = options.actionTimeout ?? 60000; // 默认60s超时
+
+    // ── v2.0: 并发度自适应 — 信号量控制 ──
+    this._maxConcurrentTasks = options.maxConcurrentTasks ?? 1;
+    this._concurrencySemaphore = 0; // 当前并发计数
+
     // ── 注册内置工具 ──
     this._registerBuiltinTools();
   }
@@ -118,11 +125,37 @@ class ExecutionCore extends EventEmitter {
   // ═══════════════════════════════════════
 
   /**
-   * 创建并启动执行任务
+   * 创建并启动执行任务（v2.0: 增加并发度自适应检查）
    * @param {Object} taskDef - { goal, context?, priority? }
    * @returns {string} taskId
    */
   async createTask(taskDef) {
+    // ── v2.0: 并发度自适应 — 检查当前负载是否允许新建任务 ──
+    const maxConcurrent = this._getAdaptiveMaxConcurrency();
+    if (this._activeTaskCount >= maxConcurrent) {
+      // 超过自适应并发上限，将任务排入等待队列
+      // 任务仍创建但标记为等待，由后续TICK触发执行
+      const taskId = `task_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const task = {
+        id: taskId,
+        goal: taskDef.goal,
+        context: taskDef.context || {},
+        priority: taskDef.priority || 'normal',
+        status: TASK_STATUS.PENDING,
+        steps: [],
+        currentStepIndex: 0,
+        results: [],
+        errors: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        _queuedDueToConcurrency: true, // 标记为因并发限制排队
+      };
+      this._tasks.set(taskId, task);
+      this.emit('task_queued', { taskId, goal: task.goal, reason: 'concurrency_limit', maxConcurrent });
+      this._dispatchBus('execution:task_queued', { taskId, goal: task.goal, maxConcurrent });
+      return taskId;
+    }
+
     const taskId = `task_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
     const task = {
@@ -142,6 +175,13 @@ class ExecutionCore extends EventEmitter {
     this._tasks.set(taskId, task);
     this.emit('task_created', { taskId, goal: task.goal });
     this._dispatchBus('execution:task_created', { taskId, goal: task.goal });
+    // v1.0: 标准化 task:created 事件（供WebSocket等外部消费）
+    this._dispatchBus('task:created', {
+      taskId,
+      goal: task.goal,
+      priority: task.priority,
+      timestamp: task.createdAt,
+    });
 
     // 自动进入规划阶段
     await this._planTask(taskId);
@@ -259,6 +299,14 @@ class ExecutionCore extends EventEmitter {
       task.status = TASK_STATUS.FAILED;
       this.emit('task_failed', { taskId, step: task.currentStepIndex, error });
       this._dispatchBus('execution:task_failed', { taskId, stepIndex: task.currentStepIndex, error });
+      // v1.0: 标准化 task:failed 事件
+      this._dispatchBus('task:failed', {
+        taskId,
+        reason: 'action_not_allowed',
+        error,
+        stepIndex: task.currentStepIndex,
+        timestamp: Date.now(),
+      });
       return { stepResult: { error }, taskStatus: TASK_STATUS.FAILED, nextStepIndex: task.currentStepIndex };
     }
 
@@ -281,6 +329,14 @@ class ExecutionCore extends EventEmitter {
           task.status = TASK_STATUS.FAILED;
           this.emit('task_failed', { taskId, step: task.currentStepIndex, error });
           this._dispatchBus('execution:task_failed', { taskId, stepIndex: task.currentStepIndex, error });
+          // v1.0: 标准化 task:failed 事件
+          this._dispatchBus('task:failed', {
+            taskId,
+            reason: 'security_denied',
+            error,
+            stepIndex: task.currentStepIndex,
+            timestamp: Date.now(),
+          });
           return { stepResult: { error }, taskStatus: TASK_STATUS.FAILED, nextStepIndex: task.currentStepIndex };
         }
       }
@@ -352,11 +408,35 @@ class ExecutionCore extends EventEmitter {
     task.currentStepIndex++;
     task.updatedAt = Date.now();
 
+    // v1.0: 任务状态同步 — 发送 step_completed 事件
+    this.emit('step_completed', {
+      taskId,
+      stepIndex: task.currentStepIndex - 1, // 刚完成的步骤索引
+      totalSteps: task.steps.length,
+      stepResult,
+      duration,
+      retryCount,
+    });
+    this._dispatchBus('task:step_completed', {
+      taskId,
+      stepIndex: task.currentStepIndex - 1,
+      totalSteps: task.steps.length,
+      success: !stepResult?.error,
+      duration,
+    });
+
     // 检查是否完成
     if (task.currentStepIndex >= task.steps.length) {
       task.status = TASK_STATUS.COMPLETED;
       this.emit('task_completed', { taskId, results: task.results });
       this._dispatchBus('execution:task_complete', { taskId });
+      // v1.0: 补充标准化 task:completed 事件
+      this._dispatchBus('task:completed', {
+        taskId,
+        totalSteps: task.steps.length,
+        totalDuration: Date.now() - task.createdAt,
+        errorCount: task.errors.length,
+      });
     } else {
       task.status = TASK_STATUS.PENDING;
     }
@@ -405,16 +485,37 @@ class ExecutionCore extends EventEmitter {
   // 工具执行
   // ═══════════════════════════════════════
 
+  /**
+   * 执行单个action（v2.0: 增加超时保护）
+   *
+   * 超时保护策略：
+   *   - 每个action默认60s超时，防止单个步骤卡死整个任务链
+   *   - 使用 Promise.race 实现，超时时抛出明确的超时错误
+   *   - 超时后不重试（超时通常意味着资源问题，重试无效）
+   */
   async _executeAction(action, params, task) {
     const tool = this._tools.get(action);
     if (!tool) throw new Error(`Unknown action: ${action}`);
 
-    if (tool.handler) {
-      return await tool.handler(params, { task, memory: this._memory });
-    }
+    // ── v2.0: 单步执行超时保护（默认60s） ──
+    const actionTimeout = this._actionTimeout ?? 60000; // 默认60秒
 
-    // 内置工具的默认实现
-    return this._executeBuiltinAction(action, params, task);
+    const executePromise = (async () => {
+      if (tool.handler) {
+        return await tool.handler(params, { task, memory: this._memory });
+      }
+      // 内置工具的默认实现
+      return this._executeBuiltinAction(action, params, task);
+    })();
+
+    // Promise.race: 超时 vs 实际执行
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`Action "${action}" timed out after ${actionTimeout / 1000}s`));
+      }, actionTimeout);
+    });
+
+    return Promise.race([executePromise, timeoutPromise]);
   }
 
   // ═══════════════════════════════════════
@@ -797,6 +898,72 @@ class ExecutionCore extends EventEmitter {
 
   getAuditLog(limit = 50) {
     return this._auditLog.slice(-limit);
+  }
+
+  // ═══════════════════════════════════════
+  // v2.0: 并发度自适应（基于内存和CPU负载动态调整）
+  // ═══════════════════════════════════════
+
+  /**
+   * 获取自适应最大并发任务数（v2.0新增）
+   *
+   * 决策因素：
+   *   1. 可用系统内存 — 内存紧张时降低并发
+   *   2. CPU负载 — 负载高时降低并发
+   *   3. 基础配置上限 — 不超过配置的 maxConcurrentTasks
+   *
+   * 规则：
+   *   - 内存可用 < 200MB → 并发=1
+   *   - 内存可用 200-500MB → 并发=2
+   *   - 内存可用 > 500MB → 使用配置上限
+   *   - CPU loadavg > 核数*2 → 并发减半（最少1）
+   *
+   * @returns {number} 自适应最大并发数
+   */
+  _getAdaptiveMaxConcurrency() {
+    const configuredMax = this._maxConcurrentTasks;
+    let adaptiveMax = configuredMax;
+
+    try {
+      const os = require('os');
+
+      // ── 内存感知 ──
+      const freeMemMB = os.freemem() / (1024 * 1024);
+      if (freeMemMB < 200) {
+        adaptiveMax = Math.min(adaptiveMax, 1); // 内存紧张，最多1个并发
+      } else if (freeMemMB < 500) {
+        adaptiveMax = Math.min(adaptiveMax, 2); // 内存中等，最多2个并发
+      }
+      // freeMemMB >= 500: 使用配置上限
+
+      // ── CPU负载感知 ──
+      const cpuCount = os.cpus().length;
+      const loadAvg = os.loadavg()[0]; // 1分钟平均负载
+      if (loadAvg > cpuCount * 2) {
+        // CPU严重过载，并发减半（最少1）
+        adaptiveMax = Math.max(1, Math.floor(adaptiveMax / 2));
+      } else if (loadAvg > cpuCount) {
+        // CPU中等负载，并发减1（最少1）
+        adaptiveMax = Math.max(1, adaptiveMax - 1);
+      }
+    } catch (e) {
+      // 无法获取系统指标时使用配置值（降级策略）
+      adaptiveMax = configuredMax;
+    }
+
+    return Math.max(1, adaptiveMax);
+  }
+
+  /**
+   * 获取当前并发状态（v2.0新增，用于信号量控制）
+   */
+  getConcurrencyStatus() {
+    return {
+      active: this._activeTaskCount,
+      maxConfigured: this._maxConcurrentTasks,
+      maxAdaptive: this._getAdaptiveMaxConcurrency(),
+      queuedTasks: [...this._tasks.values()].filter(t => t._queuedDueToConcurrency).length,
+    };
   }
 
   getStatus() {

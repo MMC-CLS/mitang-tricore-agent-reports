@@ -356,7 +356,7 @@ test('版权保护: SYSTEM_IDENTITY_CORE 存在性', async (t) => {
 
   await t.test('BRAND_NAME 包含正确标识', () => {
     assert.strictEqual(BRAND_NAME, '蜜糖 TriCore Agent', 'BRAND_NAME应正确');
-    assert.strictEqual(VERSION, '4.0.0', 'VERSION应为4.0.0');
+    assert.strictEqual(VERSION, '1.0.0', 'VERSION应为4.0.0');
   });
 
   // 清理
@@ -593,7 +593,7 @@ test('I18n: 模板参数替换', async (t) => {
   await t.test('模板参数替换测试', () => {
     const i18n = new I18n(LOCALE.ZH_CN);
     // 虽然内置翻译不包含模板变量，但验证方法存在且无报错
-    const result = i18n.t('system.name', { version: '4.0.0' });
+    const result = i18n.t('system.name', { version: '1.0.0' });
     assert.strictEqual(result, '蜜糖 TriCore Agent', '模板参数不应影响无占位符的翻译');
   });
 });

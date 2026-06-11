@@ -377,7 +377,7 @@ async function testTriCoreIntegration() {
     // Test 1: 创建Agent
     console.log('Test 1: 创建Agent...');
     assert.strictEqual(agent._running, false);
-    assert.ok(VERSION.startsWith('0.') || VERSION.startsWith('1.'));
+    assert.strictEqual(VERSION, '1.0.0');
     console.log(`  ✓ ${CODENAME} v${VERSION} 创建成功`);
 
     // Test 2: 初始化（不启动调度器，手动测试模块）

@@ -110,6 +110,22 @@ class AuditLogger extends EventEmitter {
   // ═══════════════════════════════════════
 
   /**
+   * v1.0安全修复: 审计日志注入防护
+   * 对action和userId等用户可控字段进行换行符和控制字符转义，
+   * 防止攻击者通过CRLF注入伪造审计条目或混淆合规报告。
+   * @param {string} input
+   * @returns {string}
+   */
+  _sanitizeAuditInput(input) {
+    if (typeof input !== 'string') return input;
+    return input
+      .replace(/\r\n/g, '\\n')
+      .replace(/[\r\n]/g, '\\n')
+      .replace(/\x00/g, '')
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+  }
+
+  /**
    * 记录审计事件
    * @param {string} category - 审计类别
    * @param {string} action - 操作描述
@@ -118,14 +134,17 @@ class AuditLogger extends EventEmitter {
   log(category, action, context = {}) {
     const level = context.level || this._inferLevel(category, action);
 
+    // v1.0安全修复: 对用户可控的action/userId/username进行注入防护
+    const safeAction = this._sanitizeAuditInput(action);
+
     const entry = {
       id: this._generateEventId(),
       timestamp: Date.now(),
       level,
       category,
-      action,
-      userId: context.userId || 'system',
-      username: context.username || '',
+      action: safeAction,
+      userId: this._sanitizeAuditInput(context.userId || 'system'),
+      username: this._sanitizeAuditInput(context.username || ''),
       ip: context.ip || '',
       resource: context.resource || '',
       resourceId: context.resourceId || '',

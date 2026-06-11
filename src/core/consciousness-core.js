@@ -216,7 +216,7 @@ class ConsciousnessCore extends EventEmitter {
     const searchText = preAnalyzed?.entities?.length > 0
       ? `${sanitizedContent} ${preAnalyzed.entities.slice(0, 5).join(' ')}`
       : sanitizedContent;
-    const injected = await this._injectMemories(searchText);
+    const injected = await this._injectMemories(searchText, message);
 
     // Step 3: 焦点栈更新
     const focusUpdate = this._updateFocus(sanitizedContent);
@@ -362,6 +362,36 @@ class ConsciousnessCore extends EventEmitter {
     };
   }
 
+  /**
+   * 获取觉醒期TICK间隔（v2.0: 指数退避策略）
+   *
+   * 退避规则：
+   *   - 前3个TICK保持10s（快速探索初始环境）
+   *   - 第4个TICK 15s（开始降频）
+   *   - 第5个TICK 20s（进一步降频）
+   *   - 第6个及以后 30s（稳定低频探索）
+   *
+   * 目的：避免觉醒期过度消耗Token，同时保证初期快速建立环境认知
+   * @returns {number} 毫秒间隔
+   */
+  getAwakeningTickInterval() {
+    const remaining = this._awakeningRemaining;
+    const initial = this._initialAwakeningTicks;
+    const completedTicks = initial - remaining;
+
+    // 前3个TICK保持10s
+    if (completedTicks < 3) return this._adaptiveIntervals.awakening; // 10s
+
+    // 第4个TICK: 15s
+    if (completedTicks === 3) return 15000;
+
+    // 第5个TICK: 20s
+    if (completedTicks === 4) return 20000;
+
+    // 第6个及以后: 30s
+    return 30000;
+  }
+
   // ═══════════════════════════════════════
   // 空闲自主思考
   // ═══════════════════════════════════════
@@ -463,8 +493,10 @@ class ConsciousnessCore extends EventEmitter {
 
   /**
    * 注入相关记忆、人员信息、约束条件
+   * @param {string} content - 搜索文本
+   * @param {Object} [message] - 原始消息对象，含 from/userId/meta 等字段
    */
-  async _injectMemories(content) {
+  async _injectMemories(content, message = null) {
     if (!this._memory) {
       return { memories: [], conversation: [], constraints: [], person: null };
     }
@@ -475,14 +507,36 @@ class ConsciousnessCore extends EventEmitter {
     // 2. 时间词召回
     const temporalHints = this._parseTemporalHints(content);
 
-    // 3. 人员记忆（如果消息有来源）
-    // TODO: 从消息中提取用户身份
+    // 3. v1.0修复: 从消息中提取用户身份，查询该用户的关联记忆
+    let person = null;
+    if (message) {
+      // 提取用户身份：优先 meta.userId，其次 from 字段
+      const userId = message.meta?.userId || message.from || message.userId || null;
+      if (userId) {
+        // 用 userId 搜索该用户的关联记忆
+        try {
+          const userMemories = this._memory.search({ text: `用户:${userId}`, limit: 5 });
+          if (userMemories.length > 0) {
+            person = {
+              userId,
+              relatedMemories: userMemories.length,
+              memorySummaries: userMemories.slice(0, 3).map(m =>
+                m.content?.substring(0, 100) || m.summary || ''
+              ),
+            };
+          }
+        } catch (e) {
+          // 搜索失败不影响主流程
+        }
+      }
+    }
 
     return {
       memories,
       conversation: [],  // 对话历史由外部提供
       constraints: [],
       temporalHints,
+      person,
     };
   }
 
@@ -757,6 +811,17 @@ class ConsciousnessCore extends EventEmitter {
         parts.push(`  [${sal}] ${m.content}`);
       }
       parts.push(`</memories>`);
+    }
+
+    // v1.0修复: 人员记忆上下文（从消息中提取的用户身份及关联记忆）
+    if (injected.person) {
+      parts.push(`<person-context>`);
+      parts.push(`  用户ID: ${injected.person.userId}`);
+      parts.push(`  关联记忆: ${injected.person.relatedMemories}条`);
+      if (injected.person.memorySummaries?.length > 0) {
+        parts.push(`  摘要: ${injected.person.memorySummaries.join('; ')}`);
+      }
+      parts.push(`</person-context>`);
     }
 
     // 技能
@@ -1116,13 +1181,32 @@ class ConsciousnessCore extends EventEmitter {
   // ═══════════════════════════════════════
 
   /**
-   * 构建L1缓存键（规范化后取hash）
+   * 构建L1缓存键（规范化后取hash，v2.0碰撞防护增强）
+   *
+   * 碰撞防护策略：
+   *   - 长度 ≤ 50 字符：直接使用规范化内容作为key（保持可读性）
+   *   - 长度 > 50 字符：追加简单hash后缀，防止长内容截断后碰撞
+   *   - Hash算法：各字符charCode累加取模，轻量无依赖
    */
   _buildCacheKey(content) {
     // 规范化：去空格、小写
     const normalized = content.trim().toLowerCase().replace(/\s+/g, ' ');
     // 短消息直接用作key
-    return normalized.substring(0, 50);
+    const baseKey = normalized.substring(0, 50);
+
+    // ── v2.0: 碰撞防护 — 对长度超过50字符的内容追加hash后缀 ──
+    if (content.length > 50) {
+      // 简单hash：各字符charCode累加取模，避免截断碰撞
+      let hash = 0;
+      for (let i = 0; i < content.length; i++) {
+        hash = ((hash << 5) - hash) + content.charCodeAt(i);
+        hash |= 0; // 转为32位整数
+      }
+      const hashSuffix = Math.abs(hash).toString(36);
+      return `${baseKey}#${hashSuffix}`;
+    }
+
+    return baseKey;
   }
 
   /**
@@ -1151,14 +1235,46 @@ class ConsciousnessCore extends EventEmitter {
   }
 
   /**
-   * 获取自适应TICK间隔（v1.0新增）
-   * 基于最后活动时间动态调整间隔，实现算力节省
+   * 获取自适应TICK间隔（v1.0新增，v2.0负载感知增强）
+   *
+   * 三因素综合决策：
+   *   1. 空闲时间（idleTime）—— 越久越慢
+   *   2. 待处理任务积压（pendingTasks）—— 积压多则加速
+   *   3. Token预算压力（budgetPressure）—— 压力大则降频
+   *
+   * 规则优先级：预算压力 > 任务积压 > 空闲时间
    */
   getAdaptiveTickInterval() {
     const idleTime = Date.now() - this._lastActivityTime;
 
-    // 觉醒期：快速探索
-    if (this._awakeningRemaining > 0) return this._adaptiveIntervals.awakening;
+    // ── v2.0: 检查待处理任务数量 ──
+    const pendingTasks = this._getPendingTaskCount();
+
+    // ── v2.0: 检查Token预算压力 ──
+    const budgetPressure = this._budget
+      ? this._budget.getPressureLevel()
+      : 'normal'; // 无预算管理器时默认正常
+
+    // 觉醒期：快速探索（但仍受预算压力影响）
+    if (this._awakeningRemaining > 0) {
+      // 高预算压力时，觉醒期也降频到进化间隔，避免耗尽配额
+      if (budgetPressure === 'high' || budgetPressure === 'critical') {
+        return this._adaptiveIntervals.evolution;
+      }
+      return this._adaptiveIntervals.awakening;
+    }
+
+    // ── v2.0: 积压任务多时加速到15s（无论活跃与否） ──
+    // 任务积压超过5个，需要快速处理，降频到15秒加速轮转
+    if (pendingTasks > 5) {
+      return 15000; // 加速到15s，快速消化积压
+    }
+
+    // ── v2.0: 高预算压力时，活跃期也降频 ──
+    if (budgetPressure === 'high' || budgetPressure === 'critical') {
+      // 高负载时即使活跃也降频到进化间隔（10min），节省Token配额
+      return this._adaptiveIntervals.evolution;
+    }
 
     // 活跃期：30s内有过用户消息
     if (idleTime < 30000) return this._adaptiveIntervals.active;
@@ -1171,6 +1287,33 @@ class ConsciousnessCore extends EventEmitter {
 
     // 空闲期：超过10分钟无活动，大幅降低频率
     return this._adaptiveIntervals.idle;
+  }
+
+  /**
+   * 获取待处理任务数量（v2.0新增，供自适应间隔使用）
+   * 通过检查内存中是否有待处理的任务引用
+   * @returns {number} 待处理任务数
+   */
+  _getPendingTaskCount() {
+    // 通过bus查询执行核中的任务状态（如果可用）
+    // 降级方案：基于最近消息计数估算积压
+    let count = 0;
+    if (this._bus && typeof this._bus._activeTraces !== 'undefined') {
+      // 统计活跃追踪中的任务请求事件
+      const traces = this._bus._activeTraces;
+      if (traces instanceof Map) {
+        for (const [, trace] of traces) {
+          if (trace.status === 'active') {
+            count++;
+          }
+        }
+      }
+    }
+    // 降级：基于消息频率估算（消息多但响应少=可能积压）
+    if (count === 0 && this._messageCount > 10) {
+      count = Math.min(this._messageCount / 2, 10);
+    }
+    return count;
   }
 
   /**

@@ -81,6 +81,20 @@ class ApiServer extends EventEmitter {
     // 设置变更历史
     this._settingsHistory = [];
 
+    // ── v1.0: API速率限制（令牌桶算法） ──
+    // 默认60请求/分钟/客户端，桶容量=突发允许上限
+    this._rateLimitEnabled = options.rateLimitEnabled !== false;
+    this._rateLimitPerMinute = options.rateLimitPerMinute || 60;  // 60 req/min
+    this._rateLimitBurst = options.rateLimitBurst || 10;           // 额外突发容量
+    this._rateLimitBuckets = new Map(); // clientId → { tokens, lastRefill, windowStart }
+
+    // v1.0安全修复: 信任反向代理标志 — 仅在显式配置为反向代理后才信任 X-Forwarded-For
+    // 默认false，防止IP伪造绕过速率限制
+    this._trustProxy = options.trustProxy || process.env.TRUST_PROXY === '1';
+
+    // 定期清理过期的令牌桶（每5分钟）
+    this._rateLimitCleanupTimer = setInterval(() => this._cleanupRateLimitBuckets(), 5 * 60 * 1000);
+
     // i18n 实例
     this._i18n = new I18n(LOCALE.ZH_CN);
     // 注册 API 专用错误消息
@@ -91,6 +105,8 @@ class ApiServer extends EventEmitter {
         invalidJson: '无效的 JSON 格式',
         internalError: '内部服务器错误',
         wsUnknownType: '未知消息类型: {type}',
+        rateLimited: '请求频率超限，请稍后重试',
+        rateLimitRetryAfter: '请在 {seconds} 秒后重试',
       },
     });
     this._i18n.registerLocale(LOCALE.EN_US, {
@@ -100,6 +116,8 @@ class ApiServer extends EventEmitter {
         invalidJson: 'Invalid JSON',
         internalError: 'Internal server error',
         wsUnknownType: 'Unknown message type: {type}',
+        rateLimited: 'Rate limit exceeded, please retry later',
+        rateLimitRetryAfter: 'Please retry in {seconds} seconds',
       },
     });
 
@@ -236,6 +254,13 @@ class ApiServer extends EventEmitter {
       this._wsHeartbeatInterval = null;
     }
 
+    // v1.0: 清理速率限制定时器
+    if (this._rateLimitCleanupTimer) {
+      clearInterval(this._rateLimitCleanupTimer);
+      this._rateLimitCleanupTimer = null;
+    }
+    this._rateLimitBuckets.clear();
+
     for (const [socket] of this._wsClients) {
       try { this._wsSendClose(socket, 1001, 'Server shutting down'); } catch { /* ignore */ }
     }
@@ -281,6 +306,26 @@ class ApiServer extends EventEmitter {
       return;
     }
 
+    // ── v1.0: API速率限制（令牌桶） ──
+    if (this._rateLimitEnabled) {
+      const clientId = this._getRateLimitClientId(req);
+      const rateCheck = this._checkRateLimit(clientId);
+      if (!rateCheck.allowed) {
+        res.setHeader('Retry-After', String(Math.ceil(rateCheck.retryAfterSeconds || 1)));
+        res.setHeader('X-RateLimit-Limit', String(this._rateLimitPerMinute));
+        res.setHeader('X-RateLimit-Remaining', '0');
+        this._sendJson(res, 429, {
+          ...this._i18nError('errors.rateLimited'),
+          retryAfterSeconds: Math.ceil(rateCheck.retryAfterSeconds || 1),
+          detail: this._i18n.t('errors.rateLimitRetryAfter', { seconds: Math.ceil(rateCheck.retryAfterSeconds || 1) }),
+        });
+        return;
+      }
+      // 设置速率限制响应头
+      res.setHeader('X-RateLimit-Limit', String(this._rateLimitPerMinute));
+      res.setHeader('X-RateLimit-Remaining', String(rateCheck.remaining));
+    }
+
     // 路由分发
     try {
       const routeKey = `${method} ${pathname}`;
@@ -293,7 +338,13 @@ class ApiServer extends EventEmitter {
         this._sendJson(res, 404, Object.assign({ path: pathname }, this._i18nError('errors.notFound')));
       }
     } catch (error) {
-      this._sendJson(res, 500, Object.assign({ detail: error.message }, this._i18nError('errors.internalError')));
+      // v1.0安全修复: 生产环境不暴露内部错误详情，防止信息泄露
+      // 内部错误详情通过logger记录，客户端仅收到通用错误消息
+      const isProduction = process.env.NODE_ENV === 'production';
+      const errorDetail = isProduction
+        ? 'An internal error occurred'
+        : (error.message || 'Internal server error');
+      this._sendJson(res, 500, Object.assign({ detail: errorDetail }, this._i18nError('errors.internalError')));
     }
   }
 
@@ -313,6 +364,92 @@ class ApiServer extends EventEmitter {
       } catch { return false; }
     }
     return false;
+  }
+
+  // ═══════════════════════════════════════
+  // v1.0: API速率限制（令牌桶算法）
+  // ═══════════════════════════════════════
+
+  /**
+   * 获取速率限制的客户端标识
+   *
+   * v1.0安全修复: 默认不信任 X-Forwarded-For 头。
+   * 仅在 _trustProxy=true 时才使用 X-Forwarded-For，
+   * 否则直接使用 socket.remoteAddress，防止客户端伪造IP绕过速率限制。
+   */
+  _getRateLimitClientId(req) {
+    if (this._trustProxy) {
+      const forwarded = req.headers['x-forwarded-for'];
+      if (forwarded) {
+        // 信任代理时，取最后一个（最接近真实客户端的）IP
+        const ips = forwarded.split(',').map(ip => ip.trim());
+        return ips[ips.length - 1] || req.socket.remoteAddress || 'unknown';
+      }
+    }
+    return req.socket.remoteAddress || 'unknown';
+  }
+
+  /**
+   * 令牌桶速率检查
+   *
+   * 算法：每分钟补充 rateLimitPerMinute 个令牌，
+   * 桶容量 = rateLimitPerMinute + rateLimitBurst（允许短时突发）。
+   * 每次请求消耗1个令牌。令牌不足时返回429。
+   *
+   * @param {string} clientId - 客户端标识
+   * @returns {{ allowed: boolean, remaining: number, retryAfterSeconds: number }}
+   */
+  _checkRateLimit(clientId) {
+    const now = Date.now();
+    let bucket = this._rateLimitBuckets.get(clientId);
+
+    if (!bucket) {
+      // 首次请求：创建满令牌桶
+      bucket = {
+        tokens: this._rateLimitPerMinute + this._rateLimitBurst,
+        lastRefill: now,
+        windowStart: now,
+      };
+      this._rateLimitBuckets.set(clientId, bucket);
+    }
+
+    // 计算自上次补充以来的时间，按比例补充令牌
+    const elapsed = now - bucket.lastRefill;
+    const refillRate = this._rateLimitPerMinute / 60000; // 令牌/毫秒
+    const tokensToAdd = elapsed * refillRate;
+    const maxTokens = this._rateLimitPerMinute + this._rateLimitBurst;
+
+    bucket.tokens = Math.min(maxTokens, bucket.tokens + tokensToAdd);
+    bucket.lastRefill = now;
+
+    // 消耗1个令牌
+    if (bucket.tokens >= 1) {
+      bucket.tokens -= 1;
+      return { allowed: true, remaining: Math.floor(bucket.tokens) };
+    }
+
+    // 令牌不足，计算需要等待的时间
+    const tokensNeeded = 1 - bucket.tokens;
+    const retryAfterSeconds = tokensNeeded / (this._rateLimitPerMinute / 60);
+
+    return {
+      allowed: false,
+      remaining: 0,
+      retryAfterSeconds: Math.max(1, Math.ceil(retryAfterSeconds)),
+    };
+  }
+
+  /**
+   * 定期清理过期的令牌桶（超过10分钟未活动的客户端）
+   */
+  _cleanupRateLimitBuckets() {
+    const now = Date.now();
+    const expiry = 10 * 60 * 1000; // 10分钟未活动即清理
+    for (const [clientId, bucket] of this._rateLimitBuckets) {
+      if (now - bucket.lastRefill > expiry) {
+        this._rateLimitBuckets.delete(clientId);
+      }
+    }
   }
 
   _findPatternRoute(method, pathname) {
@@ -444,6 +581,13 @@ class ApiServer extends EventEmitter {
       subscriptions: new Set(),
       authenticated,
       identity: authIdentity,
+      // v1.0: 心跳追踪 — 用于超时断开检测
+      lastPongAt: Date.now(),       // 最后一次收到PONG的时间
+      missedPings: 0,               // 连续未响应的PING次数
+      maxMissedPings: 3,            // 最多允许3次未响应（90秒）
+      // v1.0安全修复: WebSocket客户端消息速率限制，防止ping/subscribe洪水DoS
+      _msgTimestamps: [],           // 最近消息的时间戳数组（滑动窗口）
+      _maxMsgsPerSec: 10,           // 每秒最多处理10条消息
     };
     this._wsClients.set(socket, client);
 
@@ -459,8 +603,20 @@ class ApiServer extends EventEmitter {
       this._wsProcessFrames(socket, buffer, (remaining) => { buffer = remaining; });
     });
 
-    socket.on('close', () => { this._wsClients.delete(socket); });
-    socket.on('error', () => { this._wsClients.delete(socket); socket.destroy(); });
+    socket.on('close', () => {
+      const closingClient = this._wsClients.get(socket);
+      if (closingClient) {
+        this.emit('ws:disconnected', { clientId: closingClient.id, connectedDuration: Date.now() - closingClient.connectedAt });
+      }
+      this._wsClients.delete(socket);
+    });
+    socket.on('error', () => {
+      const errClient = this._wsClients.get(socket);
+      if (errClient) {
+        this.emit('ws:disconnected', { clientId: errClient.id, reason: 'error' });
+      }
+      this._wsClients.delete(socket); socket.destroy();
+    });
 
     this.emit('ws:connected', { clientId });
   }
@@ -510,6 +666,12 @@ class ApiServer extends EventEmitter {
           this._wsSendFrame(socket, WS_OPCODE.PONG, payload);
           break;
         case WS_OPCODE.PONG:
+          // v1.0: 心跳追踪 — 记录客户端PONG响应时间
+          const pongClient = this._wsClients.get(socket);
+          if (pongClient) {
+            pongClient.lastPongAt = Date.now();
+            pongClient.missedPings = 0; // 重置未响应计数
+          }
           break;
       }
 
@@ -518,9 +680,41 @@ class ApiServer extends EventEmitter {
     setRemaining(buffer);
   }
 
+  /**
+   * v1.0安全修复: WebSocket客户端消息速率限制（滑动窗口算法）
+   *
+   * 限制每个客户端每秒最多 _maxMsgsPerSec 条消息（默认10条）。
+   * 超过限制的静默丢弃，防止恶意客户端通过高频ping/subscribe消息消耗服务器资源。
+   *
+   * @param {Object} client - WebSocket客户端对象
+   * @returns {boolean} true=允许, false=限流
+   */
+  _checkWsClientRateLimit(client) {
+    const now = Date.now();
+    const windowMs = 1000; // 1秒滑动窗口
+
+    // 清理1秒前的时间戳
+    client._msgTimestamps = client._msgTimestamps.filter(t => now - t < windowMs);
+
+    // 检查是否超限
+    if (client._msgTimestamps.length >= client._maxMsgsPerSec) {
+      return false; // 限流
+    }
+
+    // 记录本次消息时间戳
+    client._msgTimestamps.push(now);
+    return true;
+  }
+
   _handleWsMessage(socket, msg) {
     const client = this._wsClients.get(socket);
     if (!client) return;
+
+    // v1.0安全修复: WebSocket消息速率限制 — 防止ping洪水DoS
+    if (!this._checkWsClientRateLimit(client)) {
+      // 速率超限，静默丢弃消息（不回复，防止被用于放大攻击）
+      return;
+    }
 
     switch (msg.type) {
       case 'subscribe':
@@ -598,13 +792,34 @@ class ApiServer extends EventEmitter {
     this._wsSendFrame(socket, WS_OPCODE.CLOSE, payload);
   }
 
+  /**
+   * WebSocket心跳（v1.0增强：客户端超时断开检测）
+   *
+   * 每30秒向所有客户端发送PING帧。
+   * 如果客户端连续3次未响应PONG（90秒），视为断开，清理资源。
+   */
   _wsHeartbeat() {
-    for (const socket of this._wsClients.keys()) {
+    const now = Date.now();
+    for (const [socket, client] of this._wsClients) {
       try {
+        // ── v1.0: 超时检测 — 检查客户端是否存活 ──
+        const timeSinceLastPong = now - client.lastPongAt;
+        // 如果超过90秒没有PONG响应，或连续错过3次PING
+        if (client.missedPings >= client.maxMissedPings || timeSinceLastPong > 120000) {
+          this.emit('ws:timeout', { clientId: client.id, missedPings: client.missedPings, idleMs: timeSinceLastPong });
+          this._wsSendClose(socket, 1001, 'Heartbeat timeout');
+          this._wsClients.delete(socket);
+          try { socket.end(); } catch { /* already closed */ }
+          continue;
+        }
+
+        // 发送PING并递增未响应计数
         this._wsSendFrame(socket, WS_OPCODE.PING, Buffer.alloc(0));
+        client.missedPings++;
       } catch {
+        // 发送失败，清理客户端
         this._wsClients.delete(socket);
-        socket.destroy();
+        try { socket.destroy(); } catch { /* already destroyed */ }
       }
     }
   }

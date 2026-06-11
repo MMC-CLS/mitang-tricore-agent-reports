@@ -89,7 +89,8 @@ function registerRoutes(server) {
       const result = this._agent?.encrypt(plaintext);
       this._sendJson(res, 200, result);
     } catch (e) {
-      this._sendJson(res, 500, { error: e.message });
+      const isProduction = process.env.NODE_ENV === 'production';
+      this._sendJson(res, 500, { error: isProduction ? 'Encryption failed' : e.message });
     }
   });
 
@@ -104,7 +105,8 @@ function registerRoutes(server) {
       const result = this._agent?.decrypt({ ciphertext, iv, authTag, version });
       this._sendJson(res, 200, { plaintext: result });
     } catch (e) {
-      this._sendJson(res, 500, { error: e.message });
+      const isProduction = process.env.NODE_ENV === 'production';
+      this._sendJson(res, 500, { error: isProduction ? 'Decryption failed' : e.message });
     }
   });
 }

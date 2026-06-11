@@ -825,15 +825,29 @@ class RBACManager extends EventEmitter {
       } catch { /* 文件读取失败，生成新的 */ }
     }
 
-    // 4. 生成新的并持久化
+    // 4. 生成新的并持久化（v1.0安全修复: 原子写入 + 重试 + 回退警告）
     const newSecret = crypto.randomBytes(32).toString('hex');
-    this._saveJwtSecret(newSecret);
+    const saved = this._saveJwtSecret(newSecret);
+    if (!saved) {
+      // 持久化失败，记录警告但继续运行（重启后JWT会失效，需要重新登录）
+      if (this._logger) {
+        this._logger.error(
+          'Failed to persist JWT secret — tokens will be invalid after restart',
+          { module: 'rbac' }
+        );
+      }
+    }
     return newSecret;
   }
 
+  /**
+   * v1.0安全修复: 原子写入JWT密钥 — 先写临时文件再rename，防止写入中断导致文件损坏
+   * @param {string} secret
+   * @returns {boolean} 是否成功持久化
+   */
   _saveJwtSecret(secret) {
     const secretPath = this._getJwtSecretPath();
-    if (!secretPath) return;
+    if (!secretPath) return false;
     try {
       const fs = require('fs');
       const path = require('path');
@@ -841,12 +855,18 @@ class RBACManager extends EventEmitter {
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
-      // 设置只有当前用户可读
-      fs.writeFileSync(secretPath, secret, { mode: 0o600 });
+      // 原子写入: 先写临时文件，然后rename（POSIX保证rename是原子操作）
+      const tmpPath = secretPath + '.tmp';
+      fs.writeFileSync(tmpPath, secret, { mode: 0o600 });
+      fs.renameSync(tmpPath, secretPath);
+      // 确保目录权限正确
+      try { fs.chmodSync(dir, 0o700); } catch { /* best effort */ }
+      return true;
     } catch (e) {
       if (this._logger) {
         this._logger.error('Failed to persist JWT secret', { module: 'rbac', error: e.message });
       }
+      return false;
     }
   }
 

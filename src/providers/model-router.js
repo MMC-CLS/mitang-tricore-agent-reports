@@ -491,6 +491,9 @@ class ModelRouter extends EventEmitter {
 
     // ── Token预算管理器引用（由外部注入） ──
     this._budgetManager = options.budgetManager || null;
+
+    // ── v2.0: 请求去重 — 合并相同 (messages + purpose) 的并发请求 ──
+    this._pendingCalls = new Map(); // dedupKey → Promise (进行中的调用)
   }
 
   // ═══════════════════════════════════════
@@ -710,12 +713,49 @@ class ModelRouter extends EventEmitter {
   // ═══════════════════════════════════════
 
   /**
-   * 调用LLM（自动路由+fallback+用途分配）
+   * 调用LLM（自动路由+fallback+用途分配，v2.0: 请求去重）
    * @param {Object} params - { purpose, messages, tools?, stream?, temperature?, max_tokens? }
    * @returns {Object} { content, toolCalls, usage, provider, model }
    */
   async call(params) {
     const { purpose = MODEL_PURPOSE.EXECUTION } = params;
+
+    // ── v2.0: 请求去重 — 对相同 (messages + purpose) 的并发请求进行合并 ──
+    const dedupKey = this._buildDedupKey(params);
+    if (this._pendingCalls.has(dedupKey)) {
+      // 已有相同请求在进行中，直接复用其Promise
+      return this._pendingCalls.get(dedupKey);
+    }
+
+    // 创建去重Promise并注册
+    const callPromise = this._executeCall(params, purpose, dedupKey);
+    this._pendingCalls.set(dedupKey, callPromise);
+
+    // v1.0安全修复: 为pending call设置5分钟安全超时
+    // 防止LLM调用永久挂起导致 _pendingCalls Map 内存泄露
+    const safetyTimer = setTimeout(() => {
+      if (this._pendingCalls.has(dedupKey)) {
+        this._pendingCalls.delete(dedupKey);
+        this.emit('dedup_safety_timeout', { dedupKey });
+      }
+    }, 300000); // 5分钟安全超时
+    safetyTimer.unref(); // 不阻止进程退出
+
+    try {
+      const result = await callPromise;
+      return result;
+    } finally {
+      // 无论成功失败，完成后清理pending记录和安全定时器
+      this._pendingCalls.delete(dedupKey);
+      clearTimeout(safetyTimer);
+    }
+  }
+
+  /**
+   * 实际执行LLM调用（从 call() 拆分，用于请求去重）
+   * @private
+   */
+  async _executeCall(params, purpose, dedupKey) {
 
     // 集成模式：多Provider投票
     if (this._strategy === ROUTE_STRATEGY.ENSEMBLE && this._providers.size >= this._ensembleConfig.minProviders) {
@@ -955,6 +995,48 @@ class ModelRouter extends EventEmitter {
   // ═══════════════════════════════════════
   // 路由策略实现
   // ═══════════════════════════════════════
+
+  /**
+   * 构建请求去重Key（v2.0新增）
+   *
+   * 去重策略：
+   *   - 对相同 (messages + purpose + tools) 的并发请求合并为一个
+   *   - Key 由 purpose + messages摘要 + tools摘要 组成
+   *   - 仅对最近一条user消息和最后一条system消息做摘要（避免全量hash开销）
+   *   - 去重窗口：请求进行中（Promise pending期间），完成后自动清理
+   *
+   * @param {Object} params - { purpose, messages, tools? }
+   * @returns {string} 去重Key
+   */
+  _buildDedupKey(params) {
+    const { purpose = MODEL_PURPOSE.EXECUTION, messages = [], tools } = params;
+
+    // 取最后一条user消息和最后一条system消息做摘要
+    const lastUser = [...messages].reverse().find(m => m.role === 'user');
+    const lastSystem = [...messages].reverse().find(m => m.role === 'system');
+
+    const userContent = lastUser?.content || '';
+    const systemSnippet = lastSystem?.content ? lastSystem.content.substring(0, 100) : '';
+
+    // 简单hash：各字符charCode累加（轻量无依赖）
+    let hash = 0;
+    const combined = `${purpose}|${systemSnippet}|${userContent}`;
+    for (let i = 0; i < combined.length; i++) {
+      hash = ((hash << 5) - hash) + combined.charCodeAt(i);
+      hash |= 0;
+    }
+
+    // 追加tools指纹（如果有）
+    if (tools && tools.length > 0) {
+      const toolNames = tools.map(t => t.function?.name || 'unknown').sort().join(',');
+      for (let i = 0; i < toolNames.length; i++) {
+        hash = ((hash << 5) - hash) + toolNames.charCodeAt(i);
+        hash |= 0;
+      }
+    }
+
+    return `dedup_${purpose}_${Math.abs(hash).toString(36)}`;
+  }
 
   /**
    * 解析Provider调用链（按用途优先）

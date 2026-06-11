@@ -64,6 +64,7 @@
 
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 // ── Bootstrap: 所有子系统通过 bootstrap 入口按依赖顺序初始化 ──
 const { bootstrapAll } = require('./bootstrap');
@@ -690,8 +691,10 @@ class TriCoreAgent {
       }
     }
 
-    // 通过CoreBus创建追踪链
-    const traceId = this._bus.startTrace('external', { userId, content: content.substring(0, 50) });
+    // v1.0安全修复: trace上下文不存储原始消息内容，只存长度哈希
+    // 防止通过getTrace()/getActiveTraces() API泄露用户输入
+    const contentHash = crypto.createHash('sha256').update(content).digest('hex').substring(0, 8);
+    const traceId = this._bus.startTrace('external', { userId, contentHash, contentLength: content.length });
 
     // Phase 23: 使用消息队列管理器（持久化+容量限制+死信队列）
     const result = this._messageQueueManager.enqueue({
@@ -715,7 +718,7 @@ class TriCoreAgent {
       return null;
     }
 
-    // 安全边界：记录消息事件
+    // 安全边界：记录消息事件（v1.0安全修复: 不包含原始消息内容）
     this._bus.dispatch(BUS_EVENT.CONSCIOUSNESS_TASK_REQUEST, {
       messageId: processorMsgId,
       from: userId,
@@ -725,6 +728,103 @@ class TriCoreAgent {
 
     this._scheduler._triggerImmediateTick();
     return processorMsgId;
+  }
+
+  /**
+   * v1.0: 带超时保护的异步 sendMessage 变体
+   *
+   * 在 sendMessage() 基础上增加超时保护（默认120秒）。
+   * 如果LLM调用超时，返回结构化超时错误而非永久挂起，
+   * 并通过WebSocket通知客户端。
+   *
+   * @param {string} userId - 用户ID
+   * @param {string} content - 消息内容
+   * @param {Object} meta - 元数据，可包含 timeout (毫秒)
+   * @returns {Promise<Object>} { success, messageId, response?, error?, timeout? }
+   */
+  async sendMessageAsync(userId, content, meta = {}) {
+    const timeout = meta.timeout || 120000; // 默认120秒超时
+    const messageId = this.sendMessage(userId, content, meta);
+
+    if (!messageId) {
+      return {
+        success: false,
+        messageId: null,
+        error: 'MESSAGE_ENQUEUE_FAILED',
+        errorMessage: '消息入队失败',
+      };
+    }
+
+    // ── 超时保护：创建竞态Promise ──
+    // v1.0安全修复: 确保超时后彻底清理所有资源（timer + event listener），
+    // 并标记消息已超时，防止后续响应重复推送
+    const responsePromise = new Promise((resolve) => {
+      let settled = false; // 防止resolve被调用两次
+
+      // 监听AI响应事件
+      const handler = (data) => {
+        if (data.messageId === messageId && !settled) {
+          settled = true;
+          this.removeListener('ai_response_internal', handler);
+          clearTimeout(timer);
+          resolve({ success: true, messageId, response: data.content, ...data });
+        }
+      };
+      this.on('ai_response_internal', handler);
+
+      // 超时定时器
+      const timer = setTimeout(() => {
+        if (settled) return; // 已被响应路径处理，忽略超时
+        settled = true;
+        this.removeListener('ai_response_internal', handler);
+
+        // v1.0安全修复: 标记消息已超时，后续响应不再重复推送
+        this._timedOutMessages = this._timedOutMessages || new Set();
+        this._timedOutMessages.add(messageId);
+        // 5分钟后清理超时标记（避免Set无限增长）
+        setTimeout(() => {
+          if (this._timedOutMessages) this._timedOutMessages.delete(messageId);
+        }, 300000);
+
+        // ── 超时通知客户端（WebSocket） ──
+        if (this._apiServer) {
+          this._apiServer.broadcastEvent?.('ai_response', {
+            messageId,
+            content: null,
+            error: 'TIMEOUT',
+            errorMessage: `LLM调用超时 (${timeout / 1000}秒)`,
+            timestamp: Date.now(),
+          });
+          if (this._apiServer._wss || this._apiServer._wsClients) {
+            this._apiServer.broadcastWs?.('messages', {
+              type: 'ai_response',
+              messageId,
+              content: null,
+              error: 'TIMEOUT',
+              errorMessage: `LLM调用超时 (${timeout / 1000}秒)`,
+              timestamp: Date.now(),
+            });
+          }
+        }
+        // ── 通过CoreBus记录超时事件 ──
+        this._bus.dispatch(BUS_EVENT.SYSTEM_ERROR, {
+          type: 'send_message_timeout',
+          messageId,
+          userId,
+          timeout,
+        }, { source: CORE_IDENTITY.EXTERNAL, priority: require('./bus/core-bus').EVENT_PRIORITY.HIGH });
+        this._logger.warn(`sendMessage 超时: ${messageId} (${timeout / 1000}秒)`, { module: 'message' });
+        resolve({
+          success: false,
+          messageId,
+          timeout: true,
+          error: 'TIMEOUT',
+          errorMessage: `LLM调用超时 (${timeout / 1000}秒)`,
+        });
+      }, timeout);
+    });
+
+    return responsePromise;
   }
 
   /**
@@ -761,9 +861,10 @@ class TriCoreAgent {
       priority: PRIORITY.HIGH,
     });
 
-    // 通过总线记录
+    // 通过总线记录（v1.0安全修复: goal可能含用户输入，截断并脱敏）
+    const sanitizedGoal = goal.length > 50 ? goal.substring(0, 50) + '...' : goal;
     this._bus.dispatch(BUS_EVENT.CONSCIOUSNESS_TASK_REQUEST, {
-      taskId, goal,
+      taskId, goalPreview: sanitizedGoal,
     }, { source: CORE_IDENTITY.CONSCIOUSNESS });
 
     return taskId;
@@ -872,20 +973,42 @@ class TriCoreAgent {
             }
           }
 
-          const tickResult = await this._consciousness.processTick({
-            type: tickType,
-            message: msg,
-            tickNumber: tick.tickNumber,
-            budgetThrottle: budgetDecision.throttleLevel,
-            suggestedPurpose: budgetDecision.suggestedPurpose,
-            // v3.0: 注入MessageProcessor分析结果
-            processorAnalysis,
-          });
+          // v1.0: 超时保护 — processTick 最多等待120秒，防止LLM永久挂起
+          const TICK_TIMEOUT_MS = 120000; // 120秒
+          const tickResult = await Promise.race([
+            this._consciousness.processTick({
+              type: tickType,
+              message: msg,
+              tickNumber: tick.tickNumber,
+              budgetThrottle: budgetDecision.throttleLevel,
+              suggestedPurpose: budgetDecision.suggestedPurpose,
+              // v3.0: 注入MessageProcessor分析结果
+              processorAnalysis,
+            }),
+            // 超时Promise — 120秒后拒绝
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error(`TICK_TIMEOUT: processTick 超时 (${TICK_TIMEOUT_MS / 1000}秒)`)), TICK_TIMEOUT_MS)
+            ),
+          ]);
 
           // v1.0 关键修复：AI响应实时回传给用户
+          // v1.0安全修复: 检查消息是否已超时，防止超时后重复推送响应
           if (tickResult && tickResult.response && msg) {
-            // 通过API Server广播AI响应
-            if (this._apiServer) {
+            // 检查是否已超时（sendMessageAsync已标记）
+            const isTimedOut = this._timedOutMessages && this._timedOutMessages.has(msg.id);
+
+            // ── v1.0: 发出内部事件，供 sendMessageAsync 超时保护使用 ──
+            // 即使已超时也要emit，让sendMessageAsync的handler自然清理
+            this.emit('ai_response_internal', {
+              messageId: msg.id,
+              content: tickResult.response,
+              layer: tickResult.layer,
+              cacheHit: tickResult.cacheHit || false,
+              timestamp: Date.now(),
+            });
+
+            // 如果消息未超时，通过API Server广播AI响应
+            if (!isTimedOut && this._apiServer) {
               this._apiServer.broadcastEvent?.('ai_response', {
                 messageId: msg.id,
                 content: tickResult.response,
@@ -963,6 +1086,20 @@ class TriCoreAgent {
 
           this._bus.completeTrace(traceId);
 
+          // v1.0: 完整事件链路 — 发送 consciousness:tick_complete 事件
+          // 包含TICK摘要：缓存命中、任务产出、耗时等
+          const tickElapsed = Date.now() - tickStartTime;
+          this._bus.dispatch('consciousness:tick_complete', {
+            tickNumber: tick.tickNumber,
+            tickType,
+            cacheHit: tickResult?.cacheHit || false,
+            taskProduced: tickResult?.toolCalls?.length > 0 || false,
+            responseLength: tickResult?.response?.length || 0,
+            layer: tickResult?.layer || 'unknown',
+            elapsedMs: tickElapsed,
+            messageId: msg?.id || null,
+          }, { source: CORE_IDENTITY.CONSCIOUSNESS, traceId });
+
           // 释放分布式锁
           if (lockResult.success) {
             await this._distLock.release(`tick_${tick.tickNumber}`);
@@ -984,6 +1121,36 @@ class TriCoreAgent {
             this._prometheus.coreTasksTotal.inc({ core: 'message_processor', status: 'interrupted' });
           }
         } catch (error) {
+          // v1.0: TICK超时特殊处理 — 通知客户端
+          if (error.message && error.message.startsWith('TICK_TIMEOUT:')) {
+            this._logger.error(`TICK超时: ${error.message}`, { module: 'scheduler', data: { tickNumber: tick.tickNumber } });
+            // WebSocket超时通知
+            if (msg && this._apiServer) {
+              this._apiServer.broadcastEvent?.('ai_response', {
+                messageId: msg.id,
+                content: null,
+                error: 'TICK_TIMEOUT',
+                errorMessage: `处理超时，请重试`,
+                timestamp: Date.now(),
+              });
+              if (this._apiServer._wss || this._apiServer._wsClients) {
+                this._apiServer.broadcastWs?.('messages', {
+                  type: 'ai_response',
+                  messageId: msg.id,
+                  content: null,
+                  error: 'TICK_TIMEOUT',
+                  errorMessage: `处理超时，请重试`,
+                  timestamp: Date.now(),
+                });
+              }
+            }
+            // 标记消息处理失败
+            if (msg) {
+              this._messageProcessor.complete(msg.id, { error: 'TICK_TIMEOUT' });
+              this._messageQueueManager.complete(msg.id);
+            }
+          }
+
           // Phase 23: 通过ErrorHandler处理TICK异常
           this._errorHandler.handle(error, {
             module: 'scheduler',
@@ -1049,10 +1216,11 @@ class TriCoreAgent {
       this._evolution.extractSkillFromTask(taskId);
     });
 
-    // 执行→意识：任务失败
+    // 执行→意识：任务失败（v1.0安全修复: 错误信息截断，防止泄露内部堆栈）
     this._execution.on('task_failed', ({ taskId, error }) => {
+      const safeError = typeof error === 'string' ? error.substring(0, 100) : (error?.message?.substring(0, 100) || 'Task failed');
       this._bus.dispatch(BUS_EVENT.EXECUTION_TASK_FAILED, {
-        taskId, error,
+        taskId, error: safeError,
       }, { source: CORE_IDENTITY.EXECUTION });
     });
 
@@ -1062,8 +1230,19 @@ class TriCoreAgent {
     });
 
     // 进化→全局：技能沉淀
-    this._evolution.on('skill_extracted', ({ name, category }) => {
+    this._evolution.on('skill_extracted', ({ name, category, sourceTask, status }) => {
       this._logger.info(`技能沉淀: "${name}" (${category}) → 待审计`);
+      // v1.0: WebSocket推送 — skill_created 事件
+      if (this._apiServer) {
+        this._apiServer.broadcastWs?.('evolution', {
+          type: 'skill_created',
+          name,
+          category,
+          sourceTask,
+          status: status || SKILL_STATUS.PENDING,
+          timestamp: Date.now(),
+        });
+      }
     });
 
     // 进化→全局：技能审计
@@ -1073,6 +1252,14 @@ class TriCoreAgent {
         this._bus.dispatch(BUS_EVENT.EVOLUTION_SKILL_PUBLISHED, {
           skillId, decision,
         }, { source: CORE_IDENTITY.EVOLUTION });
+        // v1.0: WebSocket推送 — skill_published 事件
+        if (this._apiServer) {
+          this._apiServer.broadcastWs?.('evolution', {
+            type: 'skill_published',
+            skillId,
+            timestamp: Date.now(),
+          });
+        }
       }
     });
 
@@ -1083,6 +1270,16 @@ class TriCoreAgent {
         this._bus.dispatch(BUS_EVENT.EVOLUTION_CONSOLIDATION_DONE, {
           memoriesMerged, skillsAutoApproved,
         }, { source: CORE_IDENTITY.EVOLUTION });
+
+        // v1.0: WebSocket推送 — consolidation_complete 事件
+        if (this._apiServer) {
+          this._apiServer.broadcastWs?.('evolution', {
+            type: 'consolidation_complete',
+            memoriesMerged,
+            skillsAutoApproved,
+            timestamp: Date.now(),
+          });
+        }
 
         // v3.0: MemoryNetworkGraph — 整合完成后全量重建记忆网络图
         if (this._memoryNetworkGraph && this._memory) {

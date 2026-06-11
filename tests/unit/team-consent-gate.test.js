@@ -375,7 +375,11 @@ test('TeamConsentGate - 超时处理', async (t) => {
     });
     // 没有pending请求，定时器应为null
     gate.close();
-    assert.ok(true); // 不抛出异常
+    // 验证关闭后状态一致：无待处理请求，历史记录可正常获取
+    const pending = gate.listPending();
+    assert.strictEqual(pending.length, 0, '关闭后应无待处理请求');
+    const stats = gate.getStats();
+    assert.ok(stats, '关闭后应仍可获取统计信息');
   });
 });
 

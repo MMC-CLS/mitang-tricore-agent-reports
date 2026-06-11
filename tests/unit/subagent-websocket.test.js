@@ -150,10 +150,13 @@ test('SubAgentWebSocket - 连接管理', async (t) => {
   await t.test('WebSocket错误处理不崩溃', () => {
     const ws = makeWebSocket();
     const mockWs = new MockWebSocket();
-    ws.handleConnection(mockWs, makeMockReq());
+    const clientId = ws.handleConnection(mockWs, makeMockReq());
     // 触发error事件
     mockWs.emit('error', new Error('模拟错误'));
-    assert.ok(true); // 没有崩溃
+    // 验证错误后连接对象仍然有效，服务未崩溃
+    assert.ok(ws, 'WebSocket服务应仍然存在');
+    const stats = ws.getStats();
+    assert.ok(stats.totalClients >= 0, '统计信息应仍然可获取');
   });
 
   await t.test('IP地址记录', () => {
@@ -493,8 +496,10 @@ test('SubAgentWebSocket - 错误处理', async (t) => {
     const ws = makeWebSocket();
     const mockWs = new MockWebSocket();
     mockWs.readyState = 2; // CLOSING
-    ws._sendToClient(mockWs, { type: 'test' });
-    assert.ok(true); // 不抛出异常
+    const result = ws._sendToClient(mockWs, { type: 'test' });
+    // 验证函数不抛异常，且返回false表示未发送
+    assert.strictEqual(result, false, '非OPEN状态应返回false表示未发送');
+    assert.strictEqual(mockWs.sent.length, 0, 'CLOSING状态不应发送任何数据');
   });
 
   await t.test('_sendToClient - send抛出异常不崩溃', () => {
@@ -503,14 +508,18 @@ test('SubAgentWebSocket - 错误处理', async (t) => {
       readyState: 1,
       send() { throw new Error('send failed'); },
     };
-    ws._sendToClient(badWs, { type: 'test' });
-    assert.ok(true); // 不抛出异常
+    // 验证函数不抛异常，且返回false表示发送失败
+    assert.doesNotThrow(() => {
+      const result = ws._sendToClient(badWs, { type: 'test' });
+      assert.strictEqual(result, false, 'send失败应返回false');
+    }, 'send抛出异常时_sendToClient不应传播异常');
   });
 
   await t.test('_sendError - 客户端不存在时静默跳过', () => {
     const ws = makeWebSocket();
-    ws._sendError('nonexistent-client', 'error message');
-    assert.ok(true); // 不抛出异常
+    // 验证对不存在的客户端发送错误不抛异常，且返回false
+    const result = ws._sendError('nonexistent-client', 'error message');
+    assert.strictEqual(result, false, '不存在的客户端应返回false');
   });
 });
 
@@ -532,7 +541,10 @@ test('SubAgentWebSocket - close', async (t) => {
     const ws = makeWebSocket();
     ws.close();
     ws.close();
-    assert.ok(true);
+    // 验证多次close后状态仍一致，没有残留数据
+    const stats = ws.getStats();
+    assert.strictEqual(stats.totalClients, 0, '多次close后客户端数应为0');
+    assert.strictEqual(stats.subscribedClients, 0, '多次close后订阅数应为0');
   });
 });
 

@@ -15,7 +15,7 @@ const dataDir = path.join(os.tmpdir(), 'tricore_v25_e2e_' + Date.now());
 test('E2E: TriCoreAgent v2.5 完整生命周期', async (t) => {
   const { TriCoreAgent, VERSION } = require('../../src/index');
 
-  assert.strictEqual(VERSION, '2.5.0', 'Version should be 2.5.0');
+  assert.strictEqual(VERSION, '1.0.0', 'Version should be 1.0.0');
 
   const agent = new TriCoreAgent({
     dataDir,
@@ -47,7 +47,7 @@ test('E2E: TriCoreAgent v2.5 完整生命周期', async (t) => {
 
   // 获取状态
   const status = agent.getStatus();
-  assert.strictEqual(status.version, '2.5.0');
+  assert.strictEqual(status.version, '1.0.0');
   assert.strictEqual(status.codename, 'TriCore');
   assert.ok(status.tickConcurrency);
   assert.ok(status.distLock);

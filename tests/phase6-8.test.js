@@ -704,7 +704,7 @@ async function testPhase6To8Integration() {
 
     // Test 2: 版本号确认
     console.log('Test 2: 版本号确认...');
-    assert.ok(VERSION.startsWith('0.3') || VERSION.startsWith('1.0'), `版本应为0.3.x或1.0.x，实际: ${VERSION}`);
+    assert.strictEqual(VERSION, '1.0.0', `版本应为1.0.0，实际: ${VERSION}`);
     console.log(`  ✓ 当前版本: v${VERSION}`);
 
     // Test 3: 浏览器自动化集成

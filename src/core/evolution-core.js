@@ -119,12 +119,28 @@ class EvolutionCore extends EventEmitter {
     const skill = await this._extractSkillWithLLM(traces, taskId);
     if (!skill) return null;
 
-    // 检查是否与已有技能重复
+    // 检查是否与已有技能重复（v2.0: 增量学习增强）
     const existingSkills = this._memory.searchSkills(skill.name || skill.description, 3);
     if (existingSkills.length > 0) {
       for (const existing of existingSkills) {
         if (this._memory._isSimilar(existing.description, skill.description)) {
-          // 更新已有技能的使用计数
+          // ── v2.0: 增量学习 — 检查是否有同类已存在技能，增量更新而非全新生成 ──
+          const incrementallyUpdated = this._incrementalUpdateSkill(existing, skill, traces, taskId);
+          if (incrementallyUpdated) {
+            this.emit('skill_incrementally_updated', {
+              existingSkill: existing.name,
+              newSteps: skill.steps?.length || 0,
+              sourceTask: taskId,
+            });
+            this._dispatchBus('evolution:skill_incrementally_updated', {
+              existingSkill: existing.name,
+              newSteps: skill.steps?.length || 0,
+              sourceTask: taskId,
+            });
+            return { name: existing.name, status: existing.status || SKILL_STATUS.PENDING, incrementallyUpdated: true };
+          }
+
+          // 降级：仅更新已有技能的使用计数
           this._memory.recordSkillUse(existing.id);
           this.emit('skill_deduplicated', { existingSkill: existing.name, newDescription: skill.description });
           this._dispatchBus('evolution:skill_deduplicated', { existingSkill: existing.name, newDescription: skill.description });
@@ -286,6 +302,75 @@ class EvolutionCore extends EventEmitter {
     }
   }
 
+  /**
+   * 增量更新已有技能（v2.0新增）
+   *
+   * 当发现同类已存在技能时，不创建全新技能，而是：
+   *   1. 合并新步骤到已有步骤列表（去重追加）
+   *   2. 合并新触发关键词
+   *   3. 更新使用计数和最后更新时间
+   *   4. 通过 _memory 的相关方法持久化更新
+   *
+   * @param {Object} existing - 已存在的技能对象
+   * @param {Object} newSkill - 新提取的技能
+   * @param {Array} traces - 执行轨迹
+   * @param {string} taskId - 源任务ID
+   * @returns {boolean} 是否成功增量更新
+   */
+  _incrementalUpdateSkill(existing, newSkill, traces, taskId) {
+    if (!this._memory) return false;
+
+    try {
+      // ── 合并步骤：新步骤追加到已有步骤（去重） ──
+      const existingSteps = existing.steps || [];
+      const existingStepTexts = new Set(existingSteps.map(s => s.toLowerCase().trim()));
+      const newSteps = (newSkill.steps || []).filter(s => {
+        const normalized = s.toLowerCase().trim();
+        return normalized && !existingStepTexts.has(normalized);
+      });
+
+      // ── 合并触发关键词 ──
+      const existingTriggers = new Set((existing.trigger_keywords || []).map(t => t.toLowerCase().trim()));
+      const newTriggers = (newSkill.triggers || []).filter(t => {
+        const normalized = t.toLowerCase().trim();
+        return normalized && !existingTriggers.has(normalized);
+      });
+
+      // ── 更新技能内容 ──
+      const updatedSteps = [...existingSteps, ...newSteps];
+      const updatedTriggers = [...(existing.trigger_keywords || []), ...newTriggers];
+
+      // 重新生成SKILL.md内容
+      const updatedSkillMd = this._generateSkillMd({
+        name: existing.name,
+        description: existing.description,
+        category: existing.category || SKILL_CATEGORY.GENERAL,
+        triggers: updatedTriggers,
+        steps: updatedSteps,
+        caveats: existing.caveats || [],
+      });
+
+      // 通过 memory 更新技能（如果支持 updateSkill 方法）
+      if (typeof this._memory.updateSkill === 'function') {
+        this._memory.updateSkill(existing.id, {
+          content: updatedSkillMd,
+          trigger_keywords: updatedTriggers,
+          steps: updatedSteps,
+          updated_at: Date.now(),
+        });
+      } else {
+        // 降级：至少记录使用
+        this._memory.recordSkillUse(existing.id);
+      }
+
+      return true;
+    } catch (e) {
+      // 增量更新失败，降级为仅记录使用
+      try { this._memory.recordSkillUse(existing.id); } catch (_) { /* 最终降级 */ }
+      return false;
+    }
+  }
+
   // ═══════════════════════════════════════
   // SKILL.md标准
   // ═══════════════════════════════════════
@@ -405,18 +490,27 @@ class EvolutionCore extends EventEmitter {
   // ═══════════════════════════════════════
 
   /**
-   * 启动整合循环
+   * 启动整合循环（v2.0: 使用智能触发逻辑替代固定间隔）
+   *
+   * 不再使用固定间隔的 setInterval，改为动态评估是否触发整合。
+   * 每30s轮询一次 shouldTriggerConsolidation()，满足条件时立即执行。
    */
   startConsolidationLoop() {
     if (this._consolidationTimer) return;
 
+    // ── v2.0: 智能整合触发 — 使用动态间隔替代固定setInterval ──
+    const pollInterval = Math.min(this._consolidationInterval, 30000); // 最多30s轮询一次
     this._consolidationTimer = setInterval(() => {
-      // v4.0: 外层try-catch兜底，防止定时器崩溃
-      try { this.runConsolidation(); } catch (e) { /* errors handled inside runConsolidation */ }
-    }, this._consolidationInterval);
+      try {
+        // 检查是否满足智能触发条件
+        if (this.shouldTriggerConsolidation()) {
+          this.runConsolidation();
+        }
+      } catch (e) { /* errors handled inside runConsolidation */ }
+    }, pollInterval);
 
-    this.emit('consolidation_started', { interval: this._consolidationInterval });
-    this._dispatchBus('evolution:consolidation_started', { interval: this._consolidationInterval });
+    this.emit('consolidation_started', { interval: pollInterval, mode: 'smart_trigger' });
+    this._dispatchBus('evolution:consolidation_started', { interval: pollInterval, mode: 'smart_trigger' });
   }
 
   /**
@@ -427,6 +521,49 @@ class EvolutionCore extends EventEmitter {
       clearInterval(this._consolidationTimer);
       this._consolidationTimer = null;
     }
+  }
+
+  /**
+   * 智能整合触发判断（v2.0新增）
+   *
+   * 触发条件（满足任一即触发）：
+   *   1. 新记忆超过100条 → 立即触发去重合并
+   *   2. Pending技能超过20个 → 立即触发审计
+   *   3. 距上次整合超过配置的 consolidationInterval → 按原定时间间隔
+   *
+   * 目的：避免记忆/技能积压导致系统质量下降，同时保持正常节奏
+   * @returns {boolean} 是否应触发整合
+   */
+  shouldTriggerConsolidation() {
+    if (!this._memory) return false;
+
+    // ── 条件1: 新记忆超过100条，立即触发去重 ──
+    try {
+      const newMemoryCount = this._memory.getNewMemoryCount
+        ? this._memory.getNewMemoryCount()
+        : 0;
+      if (newMemoryCount > 100) {
+        return true;
+      }
+    } catch (e) { /* 降级：忽略统计错误 */ }
+
+    // ── 条件2: Pending技能超过20个，立即触发审计 ──
+    try {
+      const pendingSkillCount = this._memory.getPendingSkillCount
+        ? this._memory.getPendingSkillCount()
+        : 0;
+      if (pendingSkillCount > 20) {
+        return true;
+      }
+    } catch (e) { /* 降级：忽略统计错误 */ }
+
+    // ── 条件3: 距上次整合超过配置间隔 ──
+    const timeSinceLast = Date.now() - this._lastConsolidationAt;
+    if (timeSinceLast >= this._consolidationInterval) {
+      return true;
+    }
+
+    return false;
   }
 
   /**

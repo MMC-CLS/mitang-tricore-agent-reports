@@ -209,7 +209,7 @@
             </div>
             <h1 class="welcome-title">欢迎使用蜜糖 TriCore Agent</h1>
             <p class="welcome-subtitle">三核驱动的企业级AI智能体系统</p>
-            <p class="welcome-version">v5.0.0</p>
+            <p class="welcome-version">v1.0.0</p>
           </div>
 
           <div class="welcome-features">

@@ -101,6 +101,21 @@ class Logger extends EventEmitter {
   // ═══════════════════════════════════════
 
   /**
+   * v1.0安全修复: 日志注入防护 — 转义用户可控输入中的换行和控制字符
+   * 防止攻击者通过CRLF注入伪造日志条目（如伪造WARN/ERROR级别混淆运维判断）
+   * @param {string} input - 用户输入
+   * @returns {string} 消毒后的输入
+   */
+  _sanitizeLogInput(input) {
+    if (typeof input !== 'string') return input;
+    return input
+      .replace(/\r\n/g, '\\n')   // CRLF → literal \n
+      .replace(/[\r\n]/g, '\\n')  // LF/CR → literal \n
+      .replace(/\x00/g, '')       // 移除NULL字节
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, ''); // 移除其他控制字符
+  }
+
+  /**
    * 记录日志
    * @param {number} level - LOG_LEVEL常量
    * @param {string} message - 日志消息
@@ -109,6 +124,9 @@ class Logger extends EventEmitter {
   log(level, message, context = {}) {
     if (level < this._level) return;
     if (this._closed) return; // 关闭后不再接受日志
+
+    // v1.0安全修复: 对用户可控的message进行注入防护
+    message = this._sanitizeLogInput(message);
 
     const entry = this._buildEntry(level, message, context);
 
@@ -176,10 +194,10 @@ class Logger extends EventEmitter {
       module: context.module || this._name,
     };
 
-    // 注入追踪字段
+    // 注入追踪字段（v1.0安全修复: 对用户可控字段进行注入防护）
     for (const field of this._contextFields) {
       if (context[field]) {
-        entry[field] = context[field];
+        entry[field] = this._sanitizeLogInput(String(context[field]));
       }
     }
 

@@ -757,7 +757,7 @@
           fields: [
             { key: 'about.brandName', label: '系统名称', type: 'text', default: '蜜糖 TriCore Agent', description: '只读' },
             { key: 'about.codename', label: '代号', type: 'text', default: 'TriCore', description: '只读' },
-            { key: 'about.version', label: '版本号', type: 'text', default: '6.0.0', description: '只读' },
+            { key: 'about.version', label: '版本号', type: 'text', default: '1.0.0', description: '只读' },
             { key: 'about.buildDate', label: '构建日期', type: 'text', default: '', description: '只读' },
             { key: 'about.configVersion', label: '配置版本', type: 'number', default: 6, description: '只读' },
           ],
