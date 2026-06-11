@@ -101,9 +101,13 @@ class ConfigManager {
    */
   save() {
     if (!fs.existsSync(this._configDir)) {
-      fs.mkdirSync(this._configDir, { recursive: true });
+      fs.mkdirSync(this._configDir, { recursive: true, mode: 0o700 });
     }
-    fs.writeFileSync(this._configPath, JSON.stringify(this._config, null, 2), 'utf-8');
+    // v4.3安全修复: 配置文件包含API密钥等敏感信息，使用0o600权限
+    // 确保仅文件所有者可读写，防止其他用户读取敏感凭据
+    fs.writeFileSync(this._configPath, JSON.stringify(this._config, null, 2), { encoding: 'utf-8', mode: 0o600 });
+    // 加固：确保目录权限也受限制
+    try { fs.chmodSync(this._configDir, 0o700); } catch { /* best effort */ }
   }
 
   /**

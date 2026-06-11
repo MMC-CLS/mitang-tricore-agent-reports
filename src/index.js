@@ -143,6 +143,41 @@ class TriCoreAgent {
     bootstrapAll(this, options);
 
     // ═══════════════════════════════════════
+    // v4.3: 全局 unhandledRejection 处理器 — 防止进程崩溃
+    //
+    // 捕获所有未处理的 Promise rejection，将其记录到日志并通过
+    // CoreBus 发送告警事件，防止 Node.js 进程因未处理 rejection 而崩溃。
+    // 处理器在实例创建时注册一次，在 stop() 时移除。
+    // ═══════════════════════════════════════
+    this._unhandledRejectionHandler = (reason, promise) => {
+      const errorMsg = reason instanceof Error ? reason.message : String(reason);
+      const errorStack = reason instanceof Error ? reason.stack : '';
+
+      // 记录到日志
+      if (this._logger) {
+        this._logger.error(`未处理的Promise rejection: ${errorMsg}`, {
+          module: 'unhandledRejection',
+          data: {
+            message: errorMsg,
+            stack: errorStack ? errorStack.substring(0, 500) : 'no stack',
+          },
+        });
+      }
+
+      // 通过 CoreBus 发送告警事件
+      if (this._bus) {
+        try {
+          this._bus.dispatch(BUS_EVENT.SYSTEM_ERROR, {
+            type: 'unhandled_rejection',
+            message: errorMsg,
+            stack: errorStack ? errorStack.substring(0, 300) : '',
+          }, { source: CORE_IDENTITY.EXTERNAL, priority: EVENT_PRIORITY.CRITICAL });
+        } catch { /* 总线可能尚未就绪，静默忽略 */ }
+      }
+    };
+    process.on('unhandledRejection', this._unhandledRejectionHandler);
+
+    // ═══════════════════════════════════════
     // v4.2: ModuleRegistry + AgentFacade — 模块化架构
     // ═══════════════════════════════════════
     this._registry = new ModuleRegistry({ logger: this._logger });
@@ -442,7 +477,16 @@ class TriCoreAgent {
     this._social.stopAll().catch(err => {
       this._logger.debug(`社交服务停止异常: ${err.message}`);
     });
-    this._apiServer.stop();
+
+    // v4.3: 使用 shutdown() 彻底清理 API Server（移除所有事件监听器）
+    if (this._apiServer) {
+      if (typeof this._apiServer.shutdown === 'function') {
+        this._apiServer.shutdown();
+      } else {
+        this._apiServer.stop();
+      }
+    }
+
     this._memory.close();
     // 清理审计日志和RBAC
     if (this._audit) this._audit.close();
@@ -488,6 +532,31 @@ class TriCoreAgent {
     if (this._messageProcessor) this._messageProcessor.stop();
     if (this._memoryNetworkGraph) this._memoryNetworkGraph.stop();
     if (this._persistenceStore) this._persistenceStore.close();
+
+    // ═══════════════════════════════════════
+    // v4.3: 清理三核事件监听器 — 防止内存泄露
+    // 必须在所有业务逻辑停止后再调用 destroy()，
+    // 确保不再有 pending 的事件处理需要这些监听器。
+    // ═══════════════════════════════════════
+    if (this._consciousness) this._consciousness.destroy();
+    if (this._execution) this._execution.destroy();
+    if (this._evolution) this._evolution.destroy();
+
+    // v4.3: 清理 CoreBus — 释放所有事件订阅和内部状态
+    if (this._bus) this._bus.destroy();
+
+    // v4.3: 移除全局 unhandledRejection 处理器
+    if (this._unhandledRejectionHandler) {
+      process.removeListener('unhandledRejection', this._unhandledRejectionHandler);
+      this._unhandledRejectionHandler = null;
+    }
+
+    // v4.3: 清理超时消息标记集合
+    if (this._timedOutMessages) {
+      this._timedOutMessages.clear();
+      this._timedOutMessages = null;
+    }
+
     // Phase 23: 优雅关闭Logger（异步flush缓冲区）
     if (this._logger) await this._logger.close();
   }
@@ -1764,8 +1833,12 @@ if (require.main === module) {
     agent._logger.info(`${BRAND_NAME} v${VERSION} 已启动。按 Ctrl+C 停止。`);
   });
 
-  process.on('SIGINT', () => {
-    agent.stop();
-    process.exit(0);
+  // v4.3安全修复: graceful-restart模块(bootstrap-infrastructure)已经注册了
+  // SIGINT/SIGTERM处理器（调用agent.stop()并exit），此处不再重复注册以避免竞态。
+  // 仅注册 uncaughtException 处理器作为兜底。
+  process.on('uncaughtException', async (error) => {
+    console.error(`[FATAL] 未捕获异常: ${error.message}\n${error.stack}`);
+    try { await agent.stop(); } catch { /* best effort */ }
+    process.exit(1);
   });
 }

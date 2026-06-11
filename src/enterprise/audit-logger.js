@@ -100,9 +100,12 @@ class AuditLogger extends EventEmitter {
     this._flushTimer = setInterval(() => this._flush(), this._flushInterval);
     this._rotationTimer = setInterval(() => this._checkRotation(), this._rotationCheckInterval);
 
-    // 进程退出时刷盘
-    process.on('beforeExit', () => this._flush());
-    process.on('SIGINT', () => { this._flush(); this.close(); });
+    // 进程退出时刷盘（v4.3安全修复: 使用once避免重复注册）
+    process.once('beforeExit', () => this._flush());
+    // v4.3安全修复: 仅负责flush，不调用close()和exit，
+    // 因为主进程（index.js）统一处理SIGINT/SIGTERM的stop流程
+    process.once('SIGINT', () => { this._flush(); });
+    process.once('SIGTERM', () => { this._flush(); });
   }
 
   // ═══════════════════════════════════════

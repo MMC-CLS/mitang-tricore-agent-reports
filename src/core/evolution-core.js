@@ -723,6 +723,40 @@ class EvolutionCore extends EventEmitter {
       isRunning: !!this._consolidationTimer,
     };
   }
+
+  // ═══════════════════════════════════════
+  // v4.3: 销毁 — 防止事件监听器内存泄露
+  // ═══════════════════════════════════════
+
+  /**
+   * 销毁进化核 — 清理所有事件监听器和内部状态
+   *
+   * 进化核继承自 EventEmitter，外部通过 .on() 注册了多个监听器
+   * （如 index.js 中 _bindCoreEvents 注册的 skill_extracted、
+   *  skill_audited、consolidation_complete 等）。
+   * 调用 destroy() 移除所有监听器，防止长期运行时的内存泄露。
+   *
+   * 同时清理：
+   *   - 整合循环定时器（_consolidationTimer）
+   *   - 依赖引用（帮助 GC）
+   */
+  destroy() {
+    // 停止整合循环定时器
+    if (this._consolidationTimer) {
+      clearInterval(this._consolidationTimer);
+      this._consolidationTimer = null;
+    }
+
+    // 移除所有事件监听器（防止外部监听者引用导致泄露）
+    this.removeAllListeners();
+
+    // 清除依赖引用（帮助 GC 回收）
+    this._memory = null;
+    this._router = null;
+    this._bus = null;
+    this._security = null;
+    this._budget = null;
+  }
 }
 
 // ── 导出 ──

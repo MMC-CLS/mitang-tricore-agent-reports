@@ -17,7 +17,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 
 const {
-  RbacManager,
+  RBACManager,
   ROLE,
   PERMISSION,
 } = require('../../src/enterprise/rbac-manager');
@@ -27,7 +27,7 @@ const {
 // ═══════════════════════════════════════
 
 test('认证测试 - JWT', async (t) => {
-  const rbac = new RbacManager({ logger: { info() {}, warn() {}, error() {}, debug() {} } });
+  const rbac = new RBACManager({ logger: { info() {}, warn() {}, error() {}, debug() {} } });
   const secret = 'test-jwt-secret-key-for-testing-only';
 
   // 创建测试用户
@@ -51,9 +51,8 @@ test('认证测试 - JWT', async (t) => {
       'wrong-secret-key',
       { expiresIn: '1h' }
     );
-    assert.throws(() => {
-      rbac.validateToken(fakeToken);
-    }, /invalid|jwt|malformed/i);
+    const result = rbac.validateToken(fakeToken);
+    assert.strictEqual(result, null, '无效签名Token应返回null');
   });
 
   await t.test('过期Token被拒绝', () => {
@@ -62,28 +61,23 @@ test('认证测试 - JWT', async (t) => {
       secret,
       { expiresIn: '0s' }
     );
-    // 等待token过期
-    assert.throws(() => {
-      rbac.validateToken(expiredToken);
-    }, /expire|jwt|invalid/i);
+    const result = rbac.validateToken(expiredToken);
+    assert.strictEqual(result, null, '过期Token应返回null');
   });
 
   await t.test('空Token被拒绝', () => {
-    assert.throws(() => {
-      rbac.validateToken('');
-    }, /jwt|token/i);
+    const result = rbac.validateToken('');
+    assert.strictEqual(result, null, '空Token应返回null');
   });
 
   await t.test('null Token被拒绝', () => {
-    assert.throws(() => {
-      rbac.validateToken(null);
-    }, /jwt|token/i);
+    const result = rbac.validateToken(null);
+    assert.strictEqual(result, null, 'null Token应返回null');
   });
 
   await t.test('恶意构造Token被拒绝', () => {
-    assert.throws(() => {
-      rbac.validateToken('not.a.valid.jwt.token');
-    }, /jwt|token|invalid/i);
+    const result = rbac.validateToken('not.a.valid.jwt.token');
+    assert.strictEqual(result, null, '恶意Token应返回null');
   });
 
   await t.test('算法混淆攻击 - HS256签名验证', () => {
@@ -110,9 +104,8 @@ test('认证测试 - JWT', async (t) => {
         JSON.stringify({ username: 'testuser', roles: [ROLE.SUPER_ADMIN] })
       ).toString('base64url');
       const tamperedToken = `${parts[0]}.${tamperedPayload}.${parts[2]}`;
-      assert.throws(() => {
-        rbac.validateToken(tamperedToken);
-      }, /invalid|signature|jwt/i);
+      const result = rbac.validateToken(tamperedToken);
+      assert.strictEqual(result, null, '篡改Token应返回null');
     }
   });
 });
@@ -219,48 +212,47 @@ test('认证测试 - WebSocket认证', async (t) => {
 // ═══════════════════════════════════════
 
 test('认证测试 - RBAC越权检测', async (t) => {
-  const rbac = new RbacManager({ logger: { info() {}, warn() {}, error() {}, debug() {} } });
+  const rbac = new RBACManager({ logger: { info() {}, warn() {}, error() {}, debug() {} } });
 
   await t.test('VIEWER角色不能创建用户', () => {
-    // 创建viewer用户
-    rbac.createUser('viewer1', 'Viewer@Pass123', [ROLE.VIEWER]);
-    const hasPermission = rbac.checkPermission('viewer1', PERMISSION.USER_CREATE);
+    const { id } = rbac.createUser('viewer1', 'Viewer@Pass123', [ROLE.VIEWER]);
+    const hasPermission = rbac.hasPermission(id, PERMISSION.USER_CREATE);
     assert.strictEqual(hasPermission, false);
   });
 
   await t.test('ADMIN角色可以创建用户', () => {
-    rbac.createUser('admin1', 'Admin@Pass123', [ROLE.ADMIN]);
-    const hasPermission = rbac.checkPermission('admin1', PERMISSION.USER_CREATE);
+    const { id } = rbac.createUser('admin1', 'Admin@Pass123', [ROLE.ADMIN]);
+    const hasPermission = rbac.hasPermission(id, PERMISSION.USER_CREATE);
     assert.strictEqual(hasPermission, true);
   });
 
   await t.test('OPERATOR不能管理系统配置', () => {
-    rbac.createUser('operator1', 'Oper@Pass123', [ROLE.OPERATOR]);
-    const hasPermission = rbac.checkPermission('operator1', PERMISSION.SYSTEM_MANAGE);
+    const { id } = rbac.createUser('operator1', 'Oper@Pass123', [ROLE.OPERATOR]);
+    const hasPermission = rbac.hasPermission(id, PERMISSION.SYSTEM_MANAGE);
     assert.strictEqual(hasPermission, false);
   });
 
   await t.test('AUDITOR只能查看不能修改', () => {
-    rbac.createUser('auditor1', 'Audit@Pass123', [ROLE.AUDITOR]);
-    assert.strictEqual(rbac.checkPermission('auditor1', PERMISSION.AGENT_VIEW_STATUS), true);
-    assert.strictEqual(rbac.checkPermission('auditor1', PERMISSION.AGENT_START), false);
+    const { id } = rbac.createUser('auditor1', 'Audit@Pass123', [ROLE.AUDITOR]);
+    assert.strictEqual(rbac.hasPermission(id, PERMISSION.AGENT_VIEW_STATUS), true);
+    assert.strictEqual(rbac.hasPermission(id, PERMISSION.AGENT_START), false);
   });
 
   await t.test('不存在的用户无权限', () => {
-    const hasPermission = rbac.checkPermission('nonexistent-user', PERMISSION.USER_VIEW);
+    const hasPermission = rbac.hasPermission('nonexistent-user', PERMISSION.USER_VIEW);
     assert.strictEqual(hasPermission, false);
   });
 
   await t.test('超级管理员拥有所有权限', () => {
-    rbac.createUser('super1', 'Super@Pass123', [ROLE.SUPER_ADMIN]);
-    assert.strictEqual(rbac.checkPermission('super1', PERMISSION.SYSTEM_MANAGE), true);
-    assert.strictEqual(rbac.checkPermission('super1', PERMISSION.USER_CREATE), true);
-    assert.strictEqual(rbac.checkPermission('super1', PERMISSION.SYSTEM_SHUTDOWN), true);
+    const { id } = rbac.createUser('super1', 'Super@Pass123', [ROLE.SUPER_ADMIN]);
+    assert.strictEqual(rbac.hasPermission(id, PERMISSION.SYSTEM_MANAGE), true);
+    assert.strictEqual(rbac.hasPermission(id, PERMISSION.USER_CREATE), true);
+    assert.strictEqual(rbac.hasPermission(id, PERMISSION.SYSTEM_SHUTDOWN), true);
   });
 
   await t.test('角色层级继承 - ADMIN不能执行SUPER_ADMIN操作', () => {
-    rbac.createUser('admin2', 'Admin2@Pass123', [ROLE.ADMIN]);
-    assert.strictEqual(rbac.checkPermission('admin2', PERMISSION.SYSTEM_SHUTDOWN), false);
+    const { id } = rbac.createUser('admin2', 'Admin2@Pass123', [ROLE.ADMIN]);
+    assert.strictEqual(rbac.hasPermission(id, PERMISSION.SYSTEM_SHUTDOWN), false);
   });
 });
 
@@ -269,7 +261,7 @@ test('认证测试 - RBAC越权检测', async (t) => {
 // ═══════════════════════════════════════
 
 test('认证测试 - 错误处理', async (t) => {
-  const rbac = new RbacManager({ logger: { info() {}, warn() {}, error() {}, debug() {} } });
+  const rbac = new RBACManager({ logger: { info() {}, warn() {}, error() {}, debug() {} } });
 
   await t.test('认证失败返回统一错误消息', () => {
     const result = rbac.authenticate('nonexistent', 'password');
@@ -285,8 +277,10 @@ test('认证测试 - 错误处理', async (t) => {
   });
 
   await t.test('禁用用户无法认证', () => {
-    rbac.createUser('disabled1', 'Disable@Pass123', [ROLE.VIEWER]);
-    rbac.setUserEnabled('disabled1', false);
+    const { id } = rbac.createUser('disabled1', 'Disable@Pass123', [ROLE.VIEWER]);
+    // 手动设置用户为禁用状态
+    const user = rbac._users.get(id);
+    if (user) user.enabled = false;
     const result = rbac.authenticate('disabled1', 'Disable@Pass123');
     assert.strictEqual(result.success, false);
   });

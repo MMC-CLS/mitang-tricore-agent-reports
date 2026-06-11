@@ -943,11 +943,11 @@ class RBACManager extends EventEmitter {
       }
     };
 
-    // SIGINT / SIGTERM
-    process.on('SIGINT', persistAndCleanup);
-    process.on('SIGTERM', persistAndCleanup);
+    // v4.3安全修复: 使用once避免多次注册导致重复执行
+    process.once('SIGINT', persistAndCleanup);
+    process.once('SIGTERM', persistAndCleanup);
     // 进程退出前
-    process.on('beforeExit', persistAndCleanup);
+    process.once('beforeExit', persistAndCleanup);
   }
 
   /**

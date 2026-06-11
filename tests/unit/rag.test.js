@@ -31,13 +31,13 @@ test('RAGEngine - 文档管理', async (t) => {
   const rag = new RAGEngine();
 
   await t.test('添加文档', async () => {
-    const result = await rag.addDocument({
+    const docId = await rag.addDocument({
       title: '测试文档',
       content: '这是一篇测试文档的内容，用于验证RAG引擎的文档管理功能。',
       metadata: { source: 'test' },
     });
-    assert.ok(result);
-    assert.ok(result.id);
+    assert.ok(docId);
+    assert.ok(typeof docId === 'string');
   });
 
   await t.test('列出文档', () => {
@@ -45,12 +45,12 @@ test('RAGEngine - 文档管理', async (t) => {
     assert.ok(Array.isArray(docs));
   });
 
-  await t.test('删除文档', () => {
-    const docResult = rag.addDocument({
+  await t.test('删除文档', async () => {
+    const docId = await rag.addDocument({
       title: '待删除文档',
       content: '待删除的内容',
     });
-    const removed = rag.removeDocument(docResult.id);
+    const removed = rag.removeDocument(docId);
     assert.ok(removed);
   });
 });
@@ -90,6 +90,6 @@ test('RAGEngine - 统计', async (t) => {
   await t.test('getStats', () => {
     const stats = rag.getStats();
     assert.ok(stats);
-    assert.ok(stats.hasOwnProperty('documentCount'));
+    assert.ok(stats.hasOwnProperty('documents'));
   });
 });

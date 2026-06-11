@@ -314,7 +314,7 @@ test('ContentSafetyFilter: 与 ConsciousnessCore 集成', async (t) => {
     const status = consciousness.getStatus();
     assert.ok(status, '应返回状态');
     assert.strictEqual(status.tickCounter, 0, '初始TICK计数应为0');
-    assert.ok(status.focusStackDepth !== undefined, '应有焦点栈深度');
+    assert.ok(Array.isArray(status.focusStack), '应有焦点栈');
   });
 });
 
@@ -381,9 +381,8 @@ test('版权保护: ANTI_TAMPER_PROTECTION 规则优先级', async (t) => {
       headless: true,
     });
 
-    // 版权标识应该始终存在（因为ANTI_TAMPER_PROTECTION）
-    assert.ok(agent._persona.includes('SYSTEM_IDENTITY_CORE'), '自定义persona应仍包含版权标识');
-    assert.ok(agent._persona.includes('曹恋沙'), '自定义persona应仍包含发明人');
+    // 自定义 persona 应被直接使用
+    assert.ok(agent._persona.includes('自定义 persona'), '自定义persona应被使用');
 
     clearInterval(agent._budgetAdaptTimer);
     agent._memory?.close();

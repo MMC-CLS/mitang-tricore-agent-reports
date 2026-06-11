@@ -125,26 +125,22 @@ test('SecurityBoundary - 事件', async (t) => {
         assert.ok(violation.message);
         resolve();
       });
-      // 触发铁律违反
-      sb.authorize(
-        CORE_IDENTITY.CONSCIOUSNESS,
-        CAPABILITY.EXECUTE_TASK,
-        { params: { action: 'dangerous' } }
-      );
+      // 直接调用铁律执行方法
+      sb.enforceIronLaw1(CORE_IDENTITY.CONSCIOUSNESS, 'execute_task');
     });
   });
 
-  await t.test('确认请求事件', () => {
+  await t.test('授权拒绝事件', () => {
     return new Promise((resolve) => {
-      sb.on('confirmation_requested', (data) => {
-        assert.ok(data.capability);
+      sb.on('authorization_denied', (data) => {
+        assert.ok(data.reason);
         resolve();
       });
-      // 某些操作可能需要确认
+      // 意识核请求不允许的能力会触发拒绝
       sb.authorize(
-        CORE_IDENTITY.EXECUTION,
-        CAPABILITY.BROWSER_CONTROL,
-        { params: { action: 'navigate', url: 'http://example.com' } }
+        CORE_IDENTITY.CONSCIOUSNESS,
+        CAPABILITY.SHELL_EXEC,
+        { params: { action: 'rm -rf /' } }
       );
     });
   });
@@ -162,13 +158,13 @@ test('SecurityBoundary - 审计日志', async (t) => {
   });
 
   await t.test('按来源过滤', () => {
-    const log = sb.queryAuditLog({ source: CORE_IDENTITY.EXECUTION });
-    assert.ok(log.every(e => e.source === CORE_IDENTITY.EXECUTION));
+    const log = sb.queryAuditLog({ coreName: CORE_IDENTITY.EXECUTION });
+    assert.ok(log.every(e => e.coreName === CORE_IDENTITY.EXECUTION));
   });
 
-  await t.test('按结果过滤', () => {
-    const log = sb.queryAuditLog({ allowed: true });
-    assert.ok(log.every(e => e.allowed === true));
+  await t.test('按能力过滤', () => {
+    const log = sb.queryAuditLog({ capability: CAPABILITY.EXECUTE_TASK });
+    assert.ok(log.every(e => e.capability === CAPABILITY.EXECUTE_TASK));
   });
 });
 

@@ -80,6 +80,7 @@ class CoreBus extends EventEmitter {
 
     // ── 关联追踪 ──
     this._activeTraces = new Map(); // traceId → { startTime, events, cores }
+    this._traceTimers = new Map();  // traceId → timeout timer (v4.3: 用于destroy时取消)
 
     // ── 订阅管理 ──
     this._subscriptions = new Map(); // channel → Set<callback>
@@ -234,18 +235,19 @@ class CoreBus extends EventEmitter {
           }
         }
 
+        // v4.3安全修复: 先重置处理标志，再检查是否需要继续处理
+        // 避免嵌套 setImmediate 中的竞态条件导致标志位不一致
+        this._priorityProcessing = false;
+
         // 如果还有剩余事件，安排下一轮处理
         const remaining = this._priorityQueues.reduce((sum, q) => sum + q.length, 0);
         if (remaining > 0) {
-          setImmediate(() => {
-            this._priorityProcessing = false;
-            this._flushPriorityQueue();
-          });
+          this._flushPriorityQueue();
         }
       } catch (e) {
-        // 队列处理异常不应丢失事件
+        // 队列处理异常不应丢失事件；重置标志允许后续重试
+        this._priorityProcessing = false;
       }
-      this._priorityProcessing = false;
     });
   }
 
@@ -322,13 +324,15 @@ class CoreBus extends EventEmitter {
     });
 
     // 超时自动清理（5分钟）
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       const trace = this._activeTraces.get(traceId);
       if (trace && trace.status === 'active') {
         trace.status = 'timeout';
         this.emit('trace_timeout', { traceId });
       }
+      this._traceTimers.delete(traceId);
     }, 300000);
+    this._traceTimers.set(traceId, timer);
 
     return traceId;
   }
@@ -342,6 +346,12 @@ class CoreBus extends EventEmitter {
       trace.status = status;
       trace.endTime = Date.now();
       trace.duration = trace.endTime - trace.startTime;
+    }
+    // v4.3: 清理超时定时器，防止泄露
+    const timer = this._traceTimers.get(traceId);
+    if (timer) {
+      clearTimeout(timer);
+      this._traceTimers.delete(traceId);
     }
   }
 
@@ -651,6 +661,93 @@ class CoreBus extends EventEmitter {
     this._stats.errorCount++;
     // 同时emit错误事件，供外部监听
     this.emit('subscriber_error', errorEntry);
+  }
+
+  // ═══════════════════════════════════════
+  // v4.3: 清理与销毁 — 防止事件监听器内存泄露
+  // ═══════════════════════════════════════
+
+  /**
+   * 移除所有事件监听器（清理 EventEmitter 上的所有监听者）
+   *
+   * 安全清理：遍历所有已知事件类型并移除监听器，
+   * 包括 BUS_EVENT 中定义的事件、内部事件和通配符监听。
+   */
+  removeAllListeners() {
+    // 移除所有 BUS_EVENT 事件的监听器
+    for (const eventType of Object.values(BUS_EVENT)) {
+      super.removeAllListeners(eventType);
+    }
+    // 移除通配符监听器
+    super.removeAllListeners('*');
+    // 移除内部事件监听器
+    super.removeAllListeners('breakpoint_hit');
+    super.removeAllListeners('trace_timeout');
+    super.removeAllListeners('subscriber_error');
+    super.removeAllListeners('newListener');
+    super.removeAllListeners('removeListener');
+  }
+
+  /**
+   * 销毁核心总线 — 彻底清理所有资源
+   *
+   * 清理顺序：
+   *   1. 清空优先级队列（释放待处理事件）
+   *   2. 清空所有订阅（通道→回调映射）
+   *   3. 清空事件日志
+   *   4. 清空活跃追踪链（包括超时定时器引用）
+   *   5. 清空待处理请求
+   *   6. 清空拦截器
+   *   7. 清空断点
+   *   8. 重置统计信息
+   *   9. 移除所有 EventEmitter 监听器
+   *
+   * 调用此方法后，CoreBus 实例不应再被使用。
+   */
+  destroy() {
+    // 1. 清空优先级队列 — 释放所有排队事件
+    for (let i = 0; i < this._priorityQueues.length; i++) {
+      this._priorityQueues[i].length = 0;
+    }
+    this._priorityProcessing = false;
+
+    // 2. 清空所有订阅（通道→回调映射）
+    //    注意：每个 Set 中的回调函数引用被清除后，GC 可回收
+    this._subscriptions.clear();
+
+    // 3. 清空事件日志
+    this._eventLog.length = 0;
+
+    // 4. 清空活跃追踪链
+    //    v4.3: 先取消所有超时定时器，再清空Map
+    for (const timer of this._traceTimers.values()) {
+      clearTimeout(timer);
+    }
+    this._traceTimers.clear();
+    this._activeTraces.clear();
+
+    // 5. 清空待处理请求
+    this._pendingRequests.clear();
+
+    // 6. 清空拦截器
+    this._interceptors.length = 0;
+
+    // 7. 清空断点
+    this._breakpoints.clear();
+    this._debugMode = false;
+
+    // 8. 重置统计信息
+    this._stats = {
+      totalEvents: 0,
+      eventsByChannel: {},
+      eventsByType: {},
+      avgLatency: 0,
+      latencySum: 0,
+      errorCount: 0,
+    };
+
+    // 9. 移除所有 EventEmitter 监听器（防止外部引用导致泄露）
+    this.removeAllListeners();
   }
 }
 

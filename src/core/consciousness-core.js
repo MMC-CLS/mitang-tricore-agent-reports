@@ -1326,6 +1326,41 @@ class ConsciousnessCore extends EventEmitter {
     if (idleTime < 600000) return 'evolution';
     return 'idle';
   }
+
+  // ═══════════════════════════════════════
+  // v4.3: 销毁 — 防止事件监听器内存泄露
+  // ═══════════════════════════════════════
+
+  /**
+   * 销毁意识核 — 清理所有事件监听器和内部状态
+   *
+   * 意识核继承自 EventEmitter，外部通过 .on() 注册了多个监听器
+   * （如 index.js 中 _bindCoreEvents 注册的 task_needed 等）。
+   * 调用 destroy() 移除所有监听器，防止长期运行时的内存泄露。
+   *
+   * 同时清理：
+   *   - L1 响应缓存（_l1Cache）
+   *   - 思考栈（_thoughtStack）
+   *   - 依赖引用（帮助 GC）
+   */
+  destroy() {
+    // 移除所有事件监听器（防止外部监听者引用导致泄露）
+    this.removeAllListeners();
+
+    // 清空 L1 响应缓存
+    this._l1Cache.clear();
+
+    // 清空思考栈
+    this._thoughtStack.length = 0;
+
+    // 清除依赖引用（帮助 GC 回收）
+    this._memory = null;
+    this._router = null;
+    this._bus = null;
+    this._security = null;
+    this._budget = null;
+    this._selfCheckState = null;
+  }
 }
 
 // ── 导出 ──

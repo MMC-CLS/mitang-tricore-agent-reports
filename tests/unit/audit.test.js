@@ -168,7 +168,7 @@ describe('AuditLogger', () => {
 
   describe('异常检测', () => {
     it('多次失败登录应触发异常', (t, done) => {
-      logger.on('anomaly_detected', (anomaly) => {
+      logger.once('anomaly_detected', (anomaly) => {
         assert.equal(anomaly.type, 'brute_force');
         done();
       });

@@ -6,7 +6,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
-const { CoreBus, BUS_CHANNEL, BUS_EVENT, EVENT_PRIORITY } = require('../../src/bus/core-bus');
+const { CoreBus, CHANNEL, BUS_EVENT, EVENT_PRIORITY } = require('../../src/bus/core-bus');
 
 test('CoreBus - 初始化', async (t) => {
   await t.test('默认配置', () => {
@@ -25,8 +25,8 @@ test('CoreBus - 事件分发', async (t) => {
 
   await t.test('分发事件', () => {
     return new Promise((resolve) => {
-      bus.on(BUS_EVENT.SYSTEM_INFO, (data) => {
-        assert.strictEqual(data.message, 'test');
+      bus.on(BUS_EVENT.SYSTEM_INFO, (event) => {
+        assert.strictEqual(event.data.message, 'test');
         resolve();
       });
       bus.dispatch(BUS_EVENT.SYSTEM_INFO, { message: 'test' }, { source: 'test' });
@@ -35,8 +35,8 @@ test('CoreBus - 事件分发', async (t) => {
 
   await t.test('分发带优先级事件', () => {
     return new Promise((resolve) => {
-      bus.on(BUS_EVENT.SYSTEM_ERROR, (data) => {
-        assert.strictEqual(data.type, 'critical');
+      bus.on(BUS_EVENT.SYSTEM_ERROR, (event) => {
+        assert.strictEqual(event.data.type, 'critical');
         resolve();
       });
       bus.dispatch(BUS_EVENT.SYSTEM_ERROR, { type: 'critical' }, { source: 'test', priority: EVENT_PRIORITY.CRITICAL });
@@ -65,9 +65,10 @@ test('CoreBus - 追踪链', async (t) => {
 
   await t.test('完成追踪', () => {
     const traceId = bus.startTrace('consciousness');
-    const result = bus.completeTrace(traceId);
-    assert.ok(result);
-    assert.strictEqual(result.traceId, traceId);
+    bus.completeTrace(traceId);
+    const trace = bus.getTrace(traceId);
+    assert.ok(trace);
+    assert.strictEqual(trace.traceId, traceId);
   });
 
   await t.test('获取追踪', () => {
@@ -90,7 +91,7 @@ test('CoreBus - 诊断', async (t) => {
     bus.dispatch(BUS_EVENT.SYSTEM_INFO, { test: true }, { source: 'test' });
     const diagnostics = bus.getDiagnostics();
     assert.ok(diagnostics);
-    assert.ok(diagnostics.eventCount >= 1);
+    assert.ok(diagnostics.stats.totalEvents >= 1);
   });
 });
 
@@ -99,20 +100,20 @@ test('CoreBus - 频道订阅', async (t) => {
 
   await t.test('订阅频道', () => {
     return new Promise((resolve) => {
-      bus.subscribe(BUS_CHANNEL.SYSTEM, (event, data) => {
-        assert.strictEqual(data.msg, 'hello');
+      bus.subscribe(CHANNEL.SYSTEM, (event) => {
+        assert.strictEqual(event.data.msg, 'hello');
         resolve();
       });
-      bus.publish(BUS_CHANNEL.SYSTEM, { msg: 'hello' });
+      bus.dispatch(BUS_EVENT.SYSTEM_INFO, { msg: 'hello' }, { source: 'test' });
     });
   });
 
   await t.test('取消订阅', () => {
     let called = false;
     const handler = () => { called = true; };
-    const subId = bus.subscribe(BUS_CHANNEL.SYSTEM, handler);
-    bus.unsubscribe(subId);
-    bus.publish(BUS_CHANNEL.SYSTEM, { test: true });
+    const unsubscribe = bus.subscribe(CHANNEL.SYSTEM, handler);
+    unsubscribe();
+    bus.dispatch(BUS_EVENT.SYSTEM_INFO, { test: true }, { source: 'test' });
     assert.strictEqual(called, false);
   });
 });

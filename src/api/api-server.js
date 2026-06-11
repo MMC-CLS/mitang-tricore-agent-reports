@@ -836,6 +836,58 @@ class ApiServer extends EventEmitter {
     }
   }
 
+  // ═══════════════════════════════════════
+  // v4.3: 彻底清理 — 防止事件监听器内存泄露
+  // ═══════════════════════════════════════
+
+  /**
+   * 彻底关闭API服务器并清理所有资源
+   *
+   * 相比 stop()，shutdown() 额外执行：
+   *   1. 调用 stop() 完成基础关闭（HTTP服务器、WebSocket、SSE）
+   *   2. 移除 HTTP server 上注册的 'upgrade' 和 'error' 监听器
+   *   3. 清理路由表（_routes、_patternRoutes、_versionedRoutes）
+   *   4. 清理速率限制数据（_rateLimitBuckets、_rateLimitCleanupTimer）
+   *   5. 移除 ApiServer 自身作为 EventEmitter 的所有监听器
+   *   6. 清除所有引用以帮助 GC 回收
+   *
+   * 调用此方法后，ApiServer 实例不应再被使用。
+   */
+  shutdown() {
+    // 1. 先执行基础关闭
+    this.stop();
+
+    // 2. 移除 HTTP server 上的事件监听器（防止 server 对象持有引用）
+    if (this._server) {
+      this._server.removeAllListeners('upgrade');
+      this._server.removeAllListeners('error');
+      this._server.removeAllListeners('request');
+      this._server.removeAllListeners('listening');
+      this._server.removeAllListeners('close');
+    }
+
+    // 3. 清理路由表
+    this._routes = {};
+    this._patternRoutes.length = 0;
+    this._versionedRoutes = null;
+
+    // 4. 清理速率限制数据（stop() 已清理定时器，此处清理残余数据）
+    if (this._rateLimitCleanupTimer) {
+      clearInterval(this._rateLimitCleanupTimer);
+      this._rateLimitCleanupTimer = null;
+    }
+    this._rateLimitBuckets.clear();
+
+    // 5. 移除 ApiServer 自身作为 EventEmitter 的所有监听器
+    //    包括 'started', 'ws:connected', 'ws:disconnected', 'ws:timeout' 等
+    this.removeAllListeners();
+
+    // 6. 清除引用（帮助 GC）
+    this._agent = null;
+    this._i18n = null;
+    this._settingsHistory.length = 0;
+  }
+
   getStatus() {
     return {
       running: !!this._server,

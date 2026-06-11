@@ -36,7 +36,7 @@ test('Logger - 初始化', async (t) => {
 });
 
 test('Logger - 日志级别', async (t) => {
-  const logger = new Logger({ level: LOG_LEVEL.DEBUG, logDir: testLogDir, enableFile: false, enableConsole: false });
+  const logger = new Logger({ level: LOG_LEVEL.TRACE, logDir: testLogDir, enableFile: false, enableConsole: false });
 
   await t.test('trace 级别', () => {
     logger.trace('trace message');
@@ -63,12 +63,16 @@ test('Logger - 日志级别', async (t) => {
   });
 
   await t.test('error 级别', () => {
+    // Add error event listener to prevent unhandled error
+    logger.on('error', () => {});
     logger.error('error message', { error: new Error('test error') });
     const stats = logger.getStats();
     assert.ok(stats.errors >= 1);
   });
 
   await t.test('fatal 级别', () => {
+    // Add error event listener to prevent unhandled error
+    logger.on('error', () => {});
     logger.fatal('fatal message');
     const stats = logger.getStats();
     assert.ok(stats.errors >= 1);
@@ -104,6 +108,8 @@ test('Logger - 结构化上下文', async (t) => {
 
   await t.test('错误对象序列化', () => {
     let captured = null;
+    // Add error event listener to prevent unhandled error
+    logger.on('error', () => {});
     logger.on('log', (entry) => { captured = entry; });
     logger.error('error with context', { error: new Error('test error') });
     assert.ok(captured.error);
@@ -145,32 +151,34 @@ test('Logger - 子日志器', async (t) => {
 });
 
 test('Logger - 事件', async (t) => {
-  const logger = new Logger({ logDir: testLogDir, enableFile: false, enableConsole: false });
+  // Use a fresh logger to avoid listener contamination
+  const eventLogger = new Logger({ logDir: testLogDir, enableFile: false, enableConsole: false });
 
   await t.test('log 事件', () => {
     return new Promise((resolve) => {
-      logger.on('log', (entry) => {
+      eventLogger.once('log', (entry) => {
         assert.strictEqual(entry.message, 'event test');
         resolve();
       });
-      logger.info('event test');
+      eventLogger.info('event test');
     });
   });
 
   await t.test('error 事件', () => {
     return new Promise((resolve) => {
-      logger.on('error', (entry) => {
+      eventLogger.once('error', (entry) => {
         assert.ok(entry.levelValue >= LOG_LEVEL.ERROR);
         resolve();
       });
-      logger.error('trigger error event');
+      eventLogger.error('trigger error event');
     });
   });
 });
 
 test('Logger - 文件写入', async (t) => {
   const logDir = path.join(testLogDir, 'file_test');
-  const logger = new Logger({ logDir, enableConsole: false, enableJSON: false });
+  // Disable async write to ensure file is written synchronously
+  const logger = new Logger({ logDir, enableConsole: false, enableJSON: false, asyncWrite: false });
 
   await t.test('写入文件', () => {
     logger.info('file log test', { module: 'test' });
@@ -209,6 +217,8 @@ test('Logger - 统计', async (t) => {
   });
 
   await t.test('累积统计', () => {
+    // Add error event listener to prevent unhandled error
+    logger.on('error', () => {});
     logger.info('msg1');
     logger.info('msg2');
     logger.error('err1');

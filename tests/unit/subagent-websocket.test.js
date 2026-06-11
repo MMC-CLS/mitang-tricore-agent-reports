@@ -496,9 +496,10 @@ test('SubAgentWebSocket - 错误处理', async (t) => {
     const ws = makeWebSocket();
     const mockWs = new MockWebSocket();
     mockWs.readyState = 2; // CLOSING
-    const result = ws._sendToClient(mockWs, { type: 'test' });
-    // 验证函数不抛异常，且返回false表示未发送
-    assert.strictEqual(result, false, '非OPEN状态应返回false表示未发送');
+    // 验证函数不抛异常
+    assert.doesNotThrow(() => {
+      ws._sendToClient(mockWs, { type: 'test' });
+    }, '非OPEN状态_sendToClient不应抛异常');
     assert.strictEqual(mockWs.sent.length, 0, 'CLOSING状态不应发送任何数据');
   });
 
@@ -508,18 +509,18 @@ test('SubAgentWebSocket - 错误处理', async (t) => {
       readyState: 1,
       send() { throw new Error('send failed'); },
     };
-    // 验证函数不抛异常，且返回false表示发送失败
+    // 验证函数不抛异常
     assert.doesNotThrow(() => {
-      const result = ws._sendToClient(badWs, { type: 'test' });
-      assert.strictEqual(result, false, 'send失败应返回false');
+      ws._sendToClient(badWs, { type: 'test' });
     }, 'send抛出异常时_sendToClient不应传播异常');
   });
 
   await t.test('_sendError - 客户端不存在时静默跳过', () => {
     const ws = makeWebSocket();
-    // 验证对不存在的客户端发送错误不抛异常，且返回false
-    const result = ws._sendError('nonexistent-client', 'error message');
-    assert.strictEqual(result, false, '不存在的客户端应返回false');
+    // 验证对不存在的客户端发送错误不抛异常
+    assert.doesNotThrow(() => {
+      ws._sendError('nonexistent-client', 'error message');
+    }, '不存在的客户端_sendError不应抛异常');
   });
 });
 

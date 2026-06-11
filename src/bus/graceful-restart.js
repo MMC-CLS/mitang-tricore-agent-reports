@@ -365,8 +365,8 @@ class GracefulRestartManager extends EventEmitter {
       process.exit(0);
     };
 
-    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.once('SIGINT', () => gracefulShutdown('SIGINT'));
 
     // SIGUSR1: 排水（准备重启，由进程管理器处理）
     process.on('SIGUSR1', () => {
