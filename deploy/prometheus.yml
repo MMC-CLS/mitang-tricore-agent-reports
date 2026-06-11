@@ -1,0 +1,19 @@
+# Prometheus 监控配置 — TriCore Agent v3.0
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: tricore
+
+scrape_configs:
+  - job_name: 'tricore-agent'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['tricore:3722']
+        labels:
+          service: 'mitang-tricore-agent'
+          version: '3.0.0'
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

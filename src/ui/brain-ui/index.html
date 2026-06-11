@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>蜜糖 TriCore Agent — Brain UI</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="../shared/settings-panel.css">
+  <link rel="stylesheet" href="../shared/onboarding-wizard.css">
+  <link rel="stylesheet" href="../shared/self-check-panel.css">
+</head>
+<body>
+  <div id="app">
+    <!-- 顶部导航栏 -->
+    <header class="top-bar">
+      <div class="logo">
+        <span class="logo-icon">🍯</span>
+        <span class="logo-text" data-i18n="system.name">蜜糖 TriCore Agent</span>
+        <span class="version" id="version">v3.0.0</span>
+      </div>
+      <nav class="top-nav">
+        <a href="index.html" class="active" data-i18n="dashboard.overview">📊 总览</a>
+        <a href="chat.html" data-i18n="nav.chat">💬 对话</a>
+        <a href="memory-graph.html" data-i18n="nav.memoryGraph">🕸 记忆图谱</a>
+        <a href="pipeline.html" data-i18n="nav.pipeline">⚛ 消息管道</a>
+        <a href="subagents.html" data-i18n="nav.subagents">🤖 子智能体</a>
+      </nav>
+      <div class="status-indicators">
+        <div class="indicator" id="ws-indicator" title="WebSocket 连接状态">
+          <span class="dot"></span><span class="label" data-i18n="status.ws">WS</span>
+        </div>
+        <div class="indicator" id="ind-consciousness" title="意识核">
+          <span class="dot"></span><span class="label" data-i18n="status.consciousness">意识</span>
+        </div>
+        <div class="indicator" id="ind-execution" title="执行核">
+          <span class="dot"></span><span class="label" data-i18n="status.execution">执行</span>
+        </div>
+        <div class="indicator" id="ind-evolution" title="进化核">
+          <span class="dot"></span><span class="label" data-i18n="status.evolution">进化</span>
+        </div>
+        <div class="indicator" id="ind-subagents" title="子智能体">
+          <span class="dot"></span><span class="label" data-i18n="status.subagents">子智能体</span>
+        </div>
+      </div>
+      <div class="lang-switcher">
+        <select id="lang-select" title="切换语言 / Switch Language">
+          <option value="zh-CN">中文</option>
+          <option value="en-US">English</option>
+        </select>
+      </div>
+      <div class="top-actions">
+        <button class="btn-icon" id="btn-self-check" title="系统自检 (Ctrl+Shift+D)">🔍</button>
+        <button class="btn-icon" id="btn-pause" title="暂停">⏸</button>
+        <button class="btn-icon" id="btn-resume" title="恢复">▶</button>
+        <button class="btn-icon" id="btn-settings" title="系统设置">⚙️</button>
+      </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+      <!-- 左侧：三核面板 -->
+      <aside class="left-panel">
+        <!-- 意识核面板 -->
+        <section class="core-panel consciousness-panel">
+          <h3 class="panel-title">
+            <span class="panel-icon">💡</span> <span data-i18n="consciousness.title">意识核</span>
+            <span class="badge" id="consciousness-mode">IDLE</span>
+          </h3>
+          <div class="panel-body">
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="consciousness.ticks">TICK计数</span>
+              <span class="stat-value tick-counter" id="consciousness-ticks">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="consciousness.activeState">活动状态</span>
+              <span class="stat-value" id="consciousness-active-state">空闲</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="consciousness.l1HitRate">L1缓存命中率</span>
+              <span class="stat-value" id="consciousness-l1-hitrate">-</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="consciousness.awakeningLeft">觉醒剩余</span>
+              <span class="stat-value" id="consciousness-awakening">-</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="consciousness.focusTopic">焦点话题</span>
+              <span class="stat-value" id="consciousness-focus">-</span>
+            </div>
+            <!-- TICK 心跳动画 -->
+            <div class="tick-heartbeat" id="tick-heartbeat">
+              <div class="tick-ring"></div>
+              <div class="tick-core"></div>
+              <span class="tick-label">TICK</span>
+            </div>
+            <div class="focus-stack" id="focus-stack">
+              <!-- 焦点栈条目 -->
+            </div>
+          </div>
+        </section>
+
+        <!-- 执行核面板 -->
+        <section class="core-panel execution-panel">
+          <h3 class="panel-title">
+            <span class="panel-icon">⚡</span> <span data-i18n="execution.title">执行核</span>
+            <span class="badge" id="execution-tasks">0</span>
+          </h3>
+          <div class="panel-body">
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="execution.activeTasks">活跃任务</span>
+              <span class="stat-value" id="execution-active">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="execution.completedTasks">完成任务</span>
+              <span class="stat-value" id="execution-completed">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="execution.completionRate">任务完成率</span>
+              <span class="stat-value" id="execution-completion-rate">-</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="execution.parallelTools">并行工具数</span>
+              <span class="stat-value" id="execution-parallel-tools">0</span>
+            </div>
+            <div class="task-list" id="task-list">
+              <!-- 任务列表 -->
+            </div>
+          </div>
+        </section>
+
+        <!-- 进化核面板 -->
+        <section class="core-panel evolution-panel">
+          <h3 class="panel-title">
+            <span class="panel-icon">🧬</span> <span data-i18n="evolution.title">进化核</span>
+            <span class="badge" id="evolution-skills">0</span>
+          </h3>
+          <div class="panel-body">
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="evolution.approvedSkills">已沉淀技能</span>
+              <span class="stat-value" id="evolution-approved">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="evolution.pendingSkills">待审核技能</span>
+              <span class="stat-value" id="evolution-pending">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="evolution.lastConsolidation">上次整合</span>
+              <span class="stat-value" id="evolution-consolidation">-</span>
+            </div>
+            <!-- 进化脉冲动画 -->
+            <div class="evolution-pulse" id="evolution-pulse">
+              <div class="evo-ring"></div>
+              <div class="evo-core"></div>
+              <span class="evo-label">进化中</span>
+            </div>
+            <div class="skill-list" id="skill-list">
+              <!-- 技能列表 -->
+            </div>
+          </div>
+        </section>
+
+        <!-- v3.0: 用户消息处理器面板 -->
+        <section class="core-panel msg-processor-panel">
+          <h3 class="panel-title">
+            <span class="panel-icon">⚛</span> <span data-i18n="msgProcessor.title">消息处理器</span>
+            <span class="badge pulse-badge" id="msgp-state">待机</span>
+          </h3>
+          <div class="panel-body">
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="msgProcessor.activePipelines">活跃管道</span>
+              <span class="stat-value" id="msgp-active">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="msgProcessor.processed">已处理</span>
+              <span class="stat-value" id="msgp-processed">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="msgProcessor.interrupted">已中断</span>
+              <span class="stat-value" id="msgp-interrupted">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="msgProcessor.avgTime">平均耗时</span>
+              <span class="stat-value" id="msgp-avg-time">-</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="msgProcessor.quantumState">量子态</span>
+              <span class="stat-value quantum-state" id="msgp-quantum">⚡叠加</span>
+            </div>
+            <div class="intent-mini-bar-container" id="msgp-intent-bar" style="margin-top:6px;">
+              <!-- 意图分布迷你图 -->
+            </div>
+            <div class="msgp-pipeline-mini" id="msgp-pipeline-mini">
+              <!-- 管道迷你视图 -->
+            </div>
+            <div class="msgp-actions">
+              <button class="btn-mini" id="btn-msgp-detail" title="查看消息管道详情" data-i18n="msgProcessor.pipelineDetail">📊 管道详情</button>
+              <button class="btn-mini" id="btn-msgp-dag" title="查看消息溯源图" data-i18n="msgProcessor.traceGraph">🔗 溯源图</button>
+              <button class="btn-mini" id="btn-msgp-pipeline-page" title="打开消息管道独立页面" onclick="window.open('pipeline.html','_blank')" data-i18n="msgProcessor.fullView">📄 完整视图</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- v3.0: 记忆网络图面板（从右侧移入左侧最底部） -->
+        <section class="ext-panel memory-graph-panel">
+          <h3 class="panel-title">
+            <span class="panel-icon">🕸</span> <span data-i18n="memoryGraph.title">记忆网络图</span>
+            <span class="badge" id="memgraph-node-count">0</span>
+          </h3>
+          <div class="panel-body">
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="memoryGraph.nodesEdges">节点/边</span>
+              <span class="stat-value" id="memgraph-stats">0/0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="memoryGraph.density">图密度</span>
+              <span class="stat-value" id="memgraph-density">0.00</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="memoryGraph.avgDegree">平均度</span>
+              <span class="stat-value" id="memgraph-avg-degree">0.0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="memoryGraph.clusters">聚类数</span>
+              <span class="stat-value" id="memgraph-clusters">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="memoryGraph.hotMemories">热记忆</span>
+              <span class="stat-value" id="memgraph-hot-count" style="color:#ff503c;">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="memoryGraph.skillConsolidation">技能固化</span>
+              <span class="stat-value" id="memgraph-skill-count" style="color:#b43cff;">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="memoryGraph.pulsars">脉冲星</span>
+              <span class="stat-value pulsar-count" id="memgraph-pulsars">0</span>
+            </div>
+            <div class="memgraph-canvas-mini" id="memgraph-canvas-mini">
+              <canvas id="memgraph-mini-canvas" width="208" height="120"></canvas>
+              <div class="memgraph-canvas-overlay" id="memgraph-overlay-text">构建记忆网络中...</div>
+            </div>
+            <div class="memgraph-legend-mini">
+              <span class="legend-dot hot"></span><span data-i18n="memoryGraph.hot">热</span>
+              <span class="legend-dot warm"></span><span data-i18n="memoryGraph.warm">暖</span>
+              <span class="legend-dot cold"></span><span data-i18n="memoryGraph.cold">冷</span>
+              <span class="legend-dot exec"></span><span data-i18n="memoryGraph.exec">执行</span>
+              <span class="legend-dot skill"></span><span data-i18n="memoryGraph.skill">技能</span>
+            </div>
+            <div class="memgraph-actions">
+              <button class="btn-mini" id="btn-memgraph-refresh" title="刷新网络图" data-i18n="memoryGraph.refresh">↻ 刷新</button>
+              <button class="btn-mini" id="btn-memgraph-full" title="打开全屏视图" data-i18n="memoryGraph.fullscreen">🔍 全屏</button>
+              <button class="btn-mini" id="btn-memgraph-layout" title="切换布局" data-i18n="memoryGraph.layout">📐 布局</button>
+              <button class="btn-mini" id="btn-memgraph-page" title="打开记忆图谱独立页面" onclick="window.open('memory-graph.html','_blank')" data-i18n="memoryGraph.fullView">📄 完整视图</button>
+            </div>
+          </div>
+        </section>
+      </aside>
+
+      <!-- 中央：对话 + 记忆流 -->
+      <div class="center-panel">
+        <!-- 对话区 -->
+        <section class="chat-panel">
+          <div class="chat-header">
+            <h3 data-i18n="chat.title">💬 对话</h3>
+            <div class="chat-modes">
+              <button class="mode-btn active" data-mode="chat" data-i18n="chat.chat">对话</button>
+              <button class="mode-btn" data-mode="task" data-i18n="chat.task">任务</button>
+            </div>
+          </div>
+          <div class="chat-messages" id="chat-messages">
+            <div class="system-message">
+              蜜糖 TriCore Agent 就绪。输入消息开始交互。
+            </div>
+          </div>
+          <div class="chat-input-area">
+            <textarea id="chat-input" placeholder="输入消息或任务描述..." rows="2" data-i18n-placeholder="chat.placeholder"></textarea>
+            <button class="btn-send" id="btn-send" data-i18n="chat.send">发送</button>
+          </div>
+        </section>
+
+        <!-- 记忆流 -->
+        <section class="memory-panel">
+          <div class="memory-header">
+            <h3 data-i18n="memory.title">🧠 记忆流</h3>
+            <input type="text" id="memory-search" placeholder="搜索记忆..." class="search-input" data-i18n-placeholder="memory.searchPlaceholder">
+          </div>
+          <div class="memory-stream" id="memory-stream">
+            <!-- 记忆条目 -->
+          </div>
+        </section>
+      </div>
+
+      <!-- 右侧：扩展面板 -->
+      <aside class="right-panel">
+        <!-- 调度器状态 -->
+        <section class="ext-panel scheduler-panel">
+          <h3 class="panel-title">
+            <span class="panel-icon">⏱</span> <span data-i18n="scheduler.title">调度器</span>
+            <span class="badge" id="scheduler-mode">IDLE</span>
+          </h3>
+          <div class="panel-body">
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="scheduler.currentMode">当前模式</span>
+              <span class="stat-value" id="scheduler-current-mode">IDLE</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="scheduler.tickInterval">TICK间隔</span>
+              <span class="stat-value" id="scheduler-tick-interval">5min</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="scheduler.consciousnessQuota">意识配额</span>
+              <span class="stat-value" id="scheduler-quota">-/12</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- 社交渠道 -->
+        <section class="ext-panel social-panel">
+          <h3 class="panel-title">
+            <span class="panel-icon">📡</span> <span data-i18n="social.title">社交渠道</span>
+          </h3>
+          <div class="panel-body">
+            <div class="channel-list" id="channel-list">
+              <div class="channel-item disconnected">Discord</div>
+              <div class="channel-item disconnected">微信</div>
+              <div class="channel-item disconnected">飞书</div>
+              <div class="channel-item disconnected">企微</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 模型路由 -->
+        <section class="ext-panel router-panel">
+          <h3 class="panel-title">
+            <span class="panel-icon">🔀</span> <span data-i18n="router.title">模型路由</span>
+          </h3>
+          <div class="panel-body">
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="router.consciousnessModel">意识模型</span>
+              <span class="stat-value" id="router-consciousness">-</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="router.executionModel">执行模型</span>
+              <span class="stat-value" id="router-execution">-</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="router.evolutionModel">进化模型</span>
+              <span class="stat-value" id="router-evolution">-</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- 浏览器状态 -->
+        <section class="ext-panel browser-panel">
+          <h3 class="panel-title">
+            <span class="panel-icon">🌐</span> <span data-i18n="browser.title">浏览器</span>
+          </h3>
+          <div class="panel-body">
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="browser.status">状态</span>
+              <span class="stat-value" id="browser-status">未初始化</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="browser.currentPage">当前页面</span>
+              <span class="stat-value" id="browser-page">-</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- 子智能体管理面板 -->
+        <section class="ext-panel subagent-panel">
+          <h3 class="panel-title">
+            <span class="panel-icon">🤖</span> <span data-i18n="subagents.title">子智能体</span>
+            <span class="badge" id="subagent-count">0</span>
+          </h3>
+          <div class="panel-body">
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="subagents.activeTotal">活跃/总数</span>
+              <span class="stat-value" id="subagent-active-total">0/0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label" data-i18n="subagents.safetyStatus">安全状态</span>
+              <span class="stat-value" id="subagent-safety">正常</span>
+            </div>
+            <div class="subagent-list" id="subagent-list">
+              <!-- 子智能体列表 -->
+            </div>
+            <div class="subagent-actions">
+              <button class="btn-mini" id="btn-create-subagent" title="创建子智能体" data-i18n="subagents.create">+ 新建</button>
+              <button class="btn-mini" id="btn-refresh-subagents" title="刷新列表" data-i18n="subagents.refresh">↻</button>
+            </div>
+          </div>
+        </section>
+      </aside>
+    </main>
+
+    <!-- 子智能体创建对话框（隐藏） -->
+    <div class="modal-overlay" id="subagent-modal" style="display:none;">
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <h3>🤖 创建子智能体</h3>
+          <button class="btn-close" id="btn-close-modal">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>子智能体名称</label>
+            <input type="text" id="subagent-name" placeholder="例如：数据分析助手" maxlength="50">
+          </div>
+          <div class="form-group">
+            <label>类型</label>
+            <select id="subagent-type">
+              <option value="assistant">通用助手</option>
+              <option value="analyst">数据分析</option>
+              <option value="executor">任务执行</option>
+              <option value="monitor">监控守护</option>
+              <option value="custom">自定义</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>描述</label>
+            <textarea id="subagent-description" placeholder="描述子智能体的用途和能力..." rows="3"></textarea>
+          </div>
+          <div class="form-group">
+            <label>安全等级</label>
+            <select id="subagent-security">
+              <option value="low">低 - 基础监控</option>
+              <option value="medium" selected>中 - 标准防护</option>
+              <option value="high">高 - 严格沙箱</option>
+              <option value="maximum">最高 - 完全隔离</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>资源配额</label>
+            <select id="subagent-quota">
+              <option value="minimal">最小 (10% 资源)</option>
+              <option value="low">低 (25% 资源)</option>
+              <option value="medium" selected>中 (50% 资源)</option>
+              <option value="high">高 (75% 资源)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="subagent-auto-start" checked>
+              创建后自动启动
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" id="btn-cancel-subagent">取消</button>
+          <button class="btn-primary" id="btn-confirm-subagent">创建</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 子智能体详情/监控对话框（隐藏） -->
+    <div class="modal-overlay" id="subagent-detail-modal" style="display:none;">
+      <div class="modal-dialog modal-wide">
+        <div class="modal-header">
+          <h3 id="subagent-detail-title">🤖 子智能体详情</h3>
+          <button class="btn-close" id="btn-close-detail-modal">✕</button>
+        </div>
+        <div class="modal-body" id="subagent-detail-body">
+          <!-- 动态填充 -->
+        </div>
+        <div class="modal-footer" id="subagent-detail-footer">
+          <!-- 动态填充操作按钮 -->
+        </div>
+      </div>
+    </div>
+
+    <!-- 子智能体对话面板（v2.7新增） -->
+    <div class="modal-overlay" id="subagent-chat-modal" style="display:none;">
+      <div class="modal-dialog modal-chat">
+        <div class="modal-header">
+          <h3 id="subagent-chat-title">💬 子智能体对话</h3>
+          <div class="chat-header-actions">
+            <button class="btn-mini" id="btn-chat-new-session" title="新建会话">+ 新会话</button>
+            <button class="btn-mini" id="btn-chat-clear-session" title="清空当前会话">清空</button>
+            <button class="btn-close" id="btn-close-chat-modal">✕</button>
+          </div>
+        </div>
+        <div class="chat-layout">
+          <!-- 会话列表侧边栏 -->
+          <div class="chat-session-sidebar" id="chat-session-sidebar">
+            <div class="session-list-header">会话列表</div>
+            <div class="session-list" id="session-list">
+              <!-- 动态填充 -->
+            </div>
+          </div>
+          <!-- 对话区域 -->
+          <div class="chat-main-area">
+            <div class="chat-engine-status" id="chat-engine-status">
+              <span class="engine-indicator" id="engine-state-indicator">● 就绪</span>
+              <span class="engine-info" id="engine-info"></span>
+            </div>
+            <div class="chat-message-area" id="subagent-messages">
+              <!-- 动态填充消息 -->
+            </div>
+            <div class="chat-input-area">
+              <textarea id="subagent-chat-input" placeholder="输入消息..." rows="2"></textarea>
+              <button class="btn-primary" id="btn-subagent-send">发送</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 团队管理面板（v2.8新增） -->
+    <div class="modal-overlay" id="team-modal" style="display:none;">
+      <div class="modal-dialog modal-chat modal-team">
+        <div class="modal-header">
+          <h3 id="team-modal-title">👥 团队协作</h3>
+          <div class="chat-header-actions">
+            <button class="btn-mini" id="btn-create-team" title="创建团队">+ 新建团队</button>
+            <button class="btn-close" id="btn-close-team-modal">✕</button>
+          </div>
+        </div>
+        <div class="chat-layout">
+          <!-- 团队列表侧边栏 -->
+          <div class="chat-session-sidebar" id="team-sidebar">
+            <div class="session-list-header">团队列表</div>
+            <div class="session-list" id="team-list">
+              <!-- 动态填充 -->
+            </div>
+            <div class="sidebar-actions">
+              <button class="btn-mini btn-refresh" id="btn-refresh-teams">↻ 刷新</button>
+            </div>
+          </div>
+          <!-- 团队主区域 -->
+          <div class="chat-main-area">
+            <div class="team-top-bar" id="team-top-bar">
+              <span class="team-name-display" id="team-name-display">请选择一个团队</span>
+              <span class="team-status-badge" id="team-status-badge"></span>
+              <div class="team-top-actions" id="team-top-actions">
+                <!-- 动态按钮 -->
+              </div>
+            </div>
+            <!-- 团队对话区域 -->
+            <div class="chat-message-area" id="team-messages">
+              <div class="chat-empty">选择一个团队开始协作</div>
+            </div>
+            <!-- 团队输入区域 -->
+            <div class="chat-input-area" id="team-input-area">
+              <select id="team-sender-select" class="team-sender-select">
+                <option value="">选择发言子智能体...</option>
+              </select>
+              <textarea id="team-chat-input" placeholder="输入消息（按Enter发送）..." rows="2" disabled></textarea>
+              <button class="btn-primary" id="btn-team-send" disabled>发送</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 创建团队对话框（v2.8新增） -->
+    <div class="modal-overlay" id="team-create-modal" style="display:none;">
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <h3>👥 创建团队</h3>
+          <button class="btn-close" id="btn-close-team-create">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>团队名称</label>
+            <input type="text" id="team-create-name" placeholder="例如：数据分析特战队" maxlength="50">
+          </div>
+          <div class="form-group">
+            <label>团队类型</label>
+            <select id="team-create-type">
+              <option value="task_force">任务执行团队</option>
+              <option value="discussion">讨论组</option>
+              <option value="pipeline">流水线团队</option>
+              <option value="custom">自定义团队</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>团队目标</label>
+            <textarea id="team-create-goal" placeholder="描述团队的共同目标..." rows="2"></textarea>
+          </div>
+          <div class="form-group">
+            <label>描述</label>
+            <textarea id="team-create-description" placeholder="描述团队的用途..." rows="2"></textarea>
+          </div>
+          <div class="form-group">
+            <label>选择成员（可多选）</label>
+            <div class="member-select-list" id="team-member-select">
+              <!-- 动态填充子智能体列表 -->
+            </div>
+          </div>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="team-require-consent" checked>
+              执行操作前需要用户确认
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" id="btn-cancel-team-create">取消</button>
+          <button class="btn-primary" id="btn-confirm-team-create">创建团队</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 确认请求对话框（v2.8新增） -->
+    <div class="modal-overlay" id="consent-modal" style="display:none;">
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <h3>⚠️ 执行确认</h3>
+        </div>
+        <div class="modal-body" id="consent-body">
+          <!-- 动态填充 -->
+        </div>
+        <div class="modal-footer">
+          <button class="btn-danger" id="btn-consent-reject">拒绝</button>
+          <button class="btn-primary" id="btn-consent-approve">批准执行</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 技能管理面板（v2.9新增） -->
+    <div class="modal-overlay" id="skill-modal" style="display:none;">
+      <div class="modal-dialog modal-chat modal-skill">
+        <div class="modal-header">
+          <h3 id="skill-modal-title">🧩 技能管理</h3>
+          <div class="chat-header-actions">
+            <button class="btn-mini" id="btn-install-skill-file" title="从文件安装技能">📂 安装文件</button>
+            <button class="btn-mini" id="btn-install-skill-content" title="粘贴技能内容">📝 粘贴安装</button>
+            <button class="btn-mini" id="btn-install-skill-market" title="从技能市场安装">🏪 市场</button>
+            <button class="btn-close" id="btn-close-skill-modal">✕</button>
+          </div>
+        </div>
+        <div class="chat-layout">
+          <!-- 子智能体选择侧边栏 -->
+          <div class="chat-session-sidebar" id="skill-agent-sidebar">
+            <div class="session-list-header">选择子智能体</div>
+            <div class="session-list" id="skill-agent-list">
+              <!-- 动态填充子智能体列表 -->
+            </div>
+            <div class="sidebar-actions">
+              <button class="btn-mini btn-refresh" id="btn-refresh-skill-agents">↻ 刷新</button>
+            </div>
+          </div>
+          <!-- 技能主区域 -->
+          <div class="chat-main-area">
+            <div class="team-top-bar" id="skill-top-bar">
+              <span class="team-name-display" id="skill-agent-name">请选择一个子智能体</span>
+              <span class="team-status-badge" id="skill-count-badge"></span>
+            </div>
+            <!-- 技能列表 -->
+            <div class="chat-message-area" id="skill-list-area">
+              <div class="chat-empty">选择子智能体查看已安装技能</div>
+            </div>
+            <!-- 技能操作按钮 -->
+            <div class="chat-input-area" id="skill-action-area" style="display:none;">
+              <button class="btn-mini" id="btn-bind-selected-skill">🔗 固化记忆</button>
+              <button class="btn-mini" id="btn-lock-selected-skill">🔒 锁定核心</button>
+              <button class="btn-mini btn-danger" id="btn-uninstall-selected-skill">🗑 卸载</button>
+              <button class="btn-mini" id="btn-export-skills">📤 导出</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 技能内容编辑对话框 -->
+    <div class="modal-overlay" id="skill-content-modal" style="display:none;">
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <h3>📝 粘贴技能内容</h3>
+          <button class="btn-close" id="btn-close-skill-content">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>目标子智能体</label>
+            <select id="skill-content-agent-select">
+              <option value="">请选择...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>技能内容（SKILL.md格式）</label>
+            <textarea id="skill-content-editor" placeholder="# 技能名称&#10;> 简短描述&#10;&#10;## Description&#10;详细描述...&#10;&#10;## Category&#10;analysis&#10;&#10;## Trigger Keywords&#10;- keyword1&#10;&#10;## Instructions&#10;技能指令内容..." rows="15"></textarea>
+          </div>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="skill-content-auto-approve" checked>
+              自动批准安装
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" id="btn-cancel-skill-content">取消</button>
+          <button class="btn-primary" id="btn-confirm-skill-content">安装技能</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- v3.0: 消息管道详情对话框 -->
+    <div class="modal-overlay" id="msgp-detail-modal" style="display:none;">
+      <div class="modal-dialog modal-wide">
+        <div class="modal-header">
+          <h3>⚛ 消息管道详情</h3>
+          <div class="chat-header-actions">
+            <button class="btn-mini" id="btn-msgp-refresh-detail" title="刷新">↻</button>
+            <button class="btn-close" id="btn-close-msgp-detail">✕</button>
+          </div>
+        </div>
+        <div class="modal-body" id="msgp-detail-body">
+          <!-- 动态填充 -->
+        </div>
+      </div>
+    </div>
+
+    <!-- v3.0: 消息溯源DAG图对话框 -->
+    <div class="modal-overlay" id="msgp-dag-modal" style="display:none;">
+      <div class="modal-dialog modal-chat">
+        <div class="modal-header">
+          <h3>🔗 消息溯源追踪图 (DAG)</h3>
+          <button class="btn-close" id="btn-close-msgp-dag">✕</button>
+        </div>
+        <div class="modal-body" style="padding:0;height:60vh;overflow:hidden;">
+          <canvas id="msgp-dag-canvas" style="width:100%;height:100%;display:block;"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- v3.0: 记忆网络图全屏视图 -->
+    <div class="modal-overlay" id="memgraph-full-modal" style="display:none;">
+      <div class="modal-dialog modal-fullscreen">
+        <div class="modal-header">
+          <h3>🕸 记忆网络图 — 全息视图</h3>
+          <div class="chat-header-actions">
+            <select id="memgraph-layout-select" class="team-sender-select" style="min-width:100px;">
+              <option value="force">力导向</option>
+              <option value="spiral">时间螺旋</option>
+              <option value="radial">径向层级</option>
+              <option value="constellation">星座图</option>
+            </select>
+            <select id="memgraph-cluster-select" class="team-sender-select" style="min-width:100px;">
+              <option value="hybrid">混合聚类</option>
+              <option value="topic">话题聚类</option>
+              <option value="tier">层级聚类</option>
+              <option value="time">时间聚类</option>
+            </select>
+            <button class="btn-mini" id="btn-memgraph-fit" title="适应视图">⊞ 适应</button>
+            <button class="btn-close" id="btn-close-memgraph-full">✕</button>
+          </div>
+        </div>
+        <div class="memgraph-full-container">
+          <canvas id="memgraph-full-canvas"></canvas>
+          <div class="memgraph-full-toolbar">
+            <button class="tool-btn" id="btn-memgraph-full-zoom-in" title="放大" onclick="window._memgraphZoomIn?.()">+</button>
+            <button class="tool-btn" id="btn-memgraph-full-zoom-out" title="缩小" onclick="window._memgraphZoomOut?.()">−</button>
+            <button class="tool-btn" id="btn-memgraph-full-fit" title="适应视图" onclick="window._memgraphFit?.()">⊡</button>
+            <button class="tool-btn" id="btn-memgraph-full-pause" title="暂停模拟" onclick="window._memgraphTogglePause?.()">⏯</button>
+          </div>
+          <div class="memgraph-full-controls">
+            <div class="physics-control-group">
+              <label>引力 <span id="memgraph-gravity-val">1.0x</span></label>
+              <input type="range" id="memgraph-gravity-slider" min="0" max="5" step="0.1" value="1.0">
+            </div>
+            <div class="physics-control-group">
+              <label>斥力 <span id="memgraph-repulsion-val">2.0x</span></label>
+              <input type="range" id="memgraph-repulsion-slider" min="0" max="5" step="0.1" value="2.0">
+            </div>
+            <div class="physics-control-group">
+              <label>连线强度 <span id="memgraph-link-val">0.5x</span></label>
+              <input type="range" id="memgraph-link-slider" min="0" max="2" step="0.05" value="0.5">
+            </div>
+            <div class="physics-control-group">
+              <label>阻尼 <span id="memgraph-damping-val">0.90</span></label>
+              <input type="range" id="memgraph-damping-slider" min="0.5" max="0.99" step="0.01" value="0.9">
+            </div>
+          </div>
+          <div class="memgraph-full-tooltip" id="memgraph-tooltip" style="display:none;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 记忆查看对话框 -->
+    <div class="modal-overlay" id="memory-modal" style="display:none;">
+      <div class="modal-dialog modal-chat">
+        <div class="modal-header">
+          <h3 id="memory-modal-title">🧠 记忆查看</h3>
+          <button class="btn-close" id="btn-close-memory-modal">✕</button>
+        </div>
+        <div class="modal-body" id="memory-content">
+          <!-- 动态填充 -->
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部状态栏 -->
+    <footer class="bottom-bar">
+      <div class="footer-left">
+        <span id="footer-status" data-i18n="footer.ready">● 就绪</span>
+      </div>
+      <div class="footer-right">
+        <span id="footer-memory" data-i18n="footer.memory">记忆: 0</span>
+        <span id="footer-uptime" data-i18n="footer.uptime">运行: 0s</span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="brain-ui.js"></script>
+  <!-- v5.0: 共享设置模块 -->
+  <script src="../shared/settings-manager.js"></script>
+  <script src="../shared/settings-panel.js"></script>
+  <!-- v6.0: 首次启动向导 & 系统自检 -->
+  <script src="../shared/onboarding-wizard.js"></script>
+  <script src="../shared/self-check-panel.js"></script>
+  <!-- i18n inline engine: data-i18n attribute support -->
+  <script>
+  (function() {
+    'use strict';
+
+    var STRINGS = {
+      'zh-CN': {
+        'system.name': '蜜糖 TriCore Agent',
+        'status.ws': 'WS',
+        'status.consciousness': '意识',
+        'status.execution': '执行',
+        'status.evolution': '进化',
+        'status.subagents': '子智能体',
+        'dashboard.overview': '📊 总览',
+        'nav.chat': '💬 对话',
+        'nav.memoryGraph': '🕸 记忆图谱',
+        'nav.pipeline': '⚛ 消息管道',
+        'nav.subagents': '🤖 子智能体',
+        'consciousness.title': '意识核',
+        'consciousness.ticks': 'TICK计数',
+        'consciousness.activeState': '活动状态',
+        'consciousness.l1HitRate': 'L1缓存命中率',
+        'consciousness.awakeningLeft': '觉醒剩余',
+        'consciousness.focusTopic': '焦点话题',
+        'execution.title': '执行核',
+        'execution.activeTasks': '活跃任务',
+        'execution.completedTasks': '完成任务',
+        'execution.completionRate': '任务完成率',
+        'execution.parallelTools': '并行工具数',
+        'evolution.title': '进化核',
+        'evolution.approvedSkills': '已沉淀技能',
+        'evolution.pendingSkills': '待审核技能',
+        'evolution.lastConsolidation': '上次整合',
+        'msgProcessor.title': '消息处理器',
+        'msgProcessor.activePipelines': '活跃管道',
+        'msgProcessor.processed': '已处理',
+        'msgProcessor.interrupted': '已中断',
+        'msgProcessor.avgTime': '平均耗时',
+        'msgProcessor.quantumState': '量子态',
+        'msgProcessor.pipelineDetail': '📊 管道详情',
+        'msgProcessor.traceGraph': '🔗 溯源图',
+        'msgProcessor.fullView': '📄 完整视图',
+        'memoryGraph.title': '记忆网络图',
+        'memoryGraph.nodesEdges': '节点/边',
+        'memoryGraph.density': '图密度',
+        'memoryGraph.avgDegree': '平均度',
+        'memoryGraph.clusters': '聚类数',
+        'memoryGraph.hotMemories': '热记忆',
+        'memoryGraph.skillConsolidation': '技能固化',
+        'memoryGraph.pulsars': '脉冲星',
+        'memoryGraph.hot': '热',
+        'memoryGraph.warm': '暖',
+        'memoryGraph.cold': '冷',
+        'memoryGraph.exec': '执行',
+        'memoryGraph.skill': '技能',
+        'memoryGraph.refresh': '↻ 刷新',
+        'memoryGraph.fullscreen': '🔍 全屏',
+        'memoryGraph.layout': '📐 布局',
+        'memoryGraph.fullView': '📄 完整视图',
+        'chat.title': '💬 对话',
+        'chat.chat': '对话',
+        'chat.task': '任务',
+        'chat.placeholder': '输入消息或任务描述...',
+        'chat.send': '发送',
+        'memory.title': '🧠 记忆流',
+        'memory.searchPlaceholder': '搜索记忆...',
+        'scheduler.title': '调度器',
+        'scheduler.currentMode': '当前模式',
+        'scheduler.tickInterval': 'TICK间隔',
+        'scheduler.consciousnessQuota': '意识配额',
+        'social.title': '📡 社交渠道',
+        'router.title': '模型路由',
+        'router.consciousnessModel': '意识模型',
+        'router.executionModel': '执行模型',
+        'router.evolutionModel': '进化模型',
+        'browser.title': '浏览器',
+        'browser.status': '状态',
+        'browser.currentPage': '当前页面',
+        'subagents.title': '子智能体',
+        'subagents.activeTotal': '活跃/总数',
+        'subagents.safetyStatus': '安全状态',
+        'subagents.create': '+ 新建',
+        'subagents.refresh': '↻',
+        'footer.ready': '● 就绪',
+        'footer.memory': '记忆: 0',
+        'footer.uptime': '运行: 0s'
+      },
+      'en-US': {
+        'system.name': 'Mitang TriCore Agent',
+        'status.ws': 'WS',
+        'status.consciousness': 'Conscious',
+        'status.execution': 'Execute',
+        'status.evolution': 'Evolve',
+        'status.subagents': 'SubAgents',
+        'dashboard.overview': '📊 Overview',
+        'nav.chat': '💬 Chat',
+        'nav.memoryGraph': '🕸 Memory Graph',
+        'nav.pipeline': '⚛ Pipeline',
+        'nav.subagents': '🤖 SubAgents',
+        'consciousness.title': 'Consciousness Core',
+        'consciousness.ticks': 'TICK Count',
+        'consciousness.activeState': 'Active State',
+        'consciousness.l1HitRate': 'L1 Cache Hit Rate',
+        'consciousness.awakeningLeft': 'Awakening Left',
+        'consciousness.focusTopic': 'Focus Topic',
+        'execution.title': 'Execution Core',
+        'execution.activeTasks': 'Active Tasks',
+        'execution.completedTasks': 'Completed Tasks',
+        'execution.completionRate': 'Completion Rate',
+        'execution.parallelTools': 'Parallel Tools',
+        'evolution.title': 'Evolution Core',
+        'evolution.approvedSkills': 'Approved Skills',
+        'evolution.pendingSkills': 'Pending Skills',
+        'evolution.lastConsolidation': 'Last Consolidation',
+        'msgProcessor.title': 'Message Processor',
+        'msgProcessor.activePipelines': 'Active Pipelines',
+        'msgProcessor.processed': 'Processed',
+        'msgProcessor.interrupted': 'Interrupted',
+        'msgProcessor.avgTime': 'Avg Time',
+        'msgProcessor.quantumState': 'Quantum State',
+        'msgProcessor.pipelineDetail': '📊 Pipeline Detail',
+        'msgProcessor.traceGraph': '🔗 Trace Graph',
+        'msgProcessor.fullView': '📄 Full View',
+        'memoryGraph.title': 'Memory Network Graph',
+        'memoryGraph.nodesEdges': 'Nodes/Edges',
+        'memoryGraph.density': 'Graph Density',
+        'memoryGraph.avgDegree': 'Avg Degree',
+        'memoryGraph.clusters': 'Clusters',
+        'memoryGraph.hotMemories': 'Hot Memories',
+        'memoryGraph.skillConsolidation': 'Skill Consolidation',
+        'memoryGraph.pulsars': 'Pulsars',
+        'memoryGraph.hot': 'Hot',
+        'memoryGraph.warm': 'Warm',
+        'memoryGraph.cold': 'Cold',
+        'memoryGraph.exec': 'Exec',
+        'memoryGraph.skill': 'Skill',
+        'memoryGraph.refresh': '↻ Refresh',
+        'memoryGraph.fullscreen': '🔍 Fullscreen',
+        'memoryGraph.layout': '📐 Layout',
+        'memoryGraph.fullView': '📄 Full View',
+        'chat.title': '💬 Chat',
+        'chat.chat': 'Chat',
+        'chat.task': 'Task',
+        'chat.placeholder': 'Type a message or task description...',
+        'chat.send': 'Send',
+        'memory.title': '🧠 Memory Stream',
+        'memory.searchPlaceholder': 'Search memories...',
+        'scheduler.title': 'Scheduler',
+        'scheduler.currentMode': 'Current Mode',
+        'scheduler.tickInterval': 'TICK Interval',
+        'scheduler.consciousnessQuota': 'Consciousness Quota',
+        'social.title': '📡 Social Channels',
+        'router.title': 'Model Router',
+        'router.consciousnessModel': 'Consciousness Model',
+        'router.executionModel': 'Execution Model',
+        'router.evolutionModel': 'Evolution Model',
+        'browser.title': 'Browser',
+        'browser.status': 'Status',
+        'browser.currentPage': 'Current Page',
+        'subagents.title': 'SubAgents',
+        'subagents.activeTotal': 'Active/Total',
+        'subagents.safetyStatus': 'Safety Status',
+        'subagents.create': '+ Create',
+        'subagents.refresh': '↻',
+        'footer.ready': '● Ready',
+        'footer.memory': 'Memory: 0',
+        'footer.uptime': 'Uptime: 0s'
+      }
+    };
+
+    var currentLocale = 'zh-CN';
+
+    function t(key) {
+      var map = STRINGS[currentLocale];
+      if (map && map[key] !== undefined) return map[key];
+      // fallback to en-US
+      if (currentLocale !== 'en-US' && STRINGS['en-US'] && STRINGS['en-US'][key] !== undefined) {
+        return STRINGS['en-US'][key];
+      }
+      return key;
+    }
+
+    function applyTranslations() {
+      // data-i18n on text content
+      var elements = document.querySelectorAll('[data-i18n]');
+      for (var i = 0; i < elements.length; i++) {
+        var el = elements[i];
+        var key = el.getAttribute('data-i18n');
+        if (key) {
+          el.textContent = t(key);
+        }
+      }
+      // data-i18n-placeholder
+      var placeholders = document.querySelectorAll('[data-i18n-placeholder]');
+      for (var j = 0; j < placeholders.length; j++) {
+        var el2 = placeholders[j];
+        var phKey = el2.getAttribute('data-i18n-placeholder');
+        if (phKey) {
+          el2.setAttribute('placeholder', t(phKey));
+        }
+      }
+    }
+
+    function setLocale(locale) {
+      if (STRINGS[locale]) {
+        currentLocale = locale;
+        applyTranslations();
+        // Update html lang attribute
+        document.documentElement.setAttribute('lang', locale);
+        // Dispatch event for other modules
+        window.dispatchEvent(new CustomEvent('localechange', { detail: { locale: locale } }));
+      }
+    }
+
+    // Language switcher listener
+    var langSelect = document.getElementById('lang-select');
+    if (langSelect) {
+      langSelect.addEventListener('change', function() {
+        setLocale(this.value);
+      });
+    }
+
+    // Apply initial translations on DOM ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', applyTranslations);
+    } else {
+      applyTranslations();
+    }
+
+    // Expose for external use
+    window.__i18n = { t: t, setLocale: setLocale, getLocale: function() { return currentLocale; }, STRINGS: STRINGS };
+  })();
+  </script>
+</body>
+</html>

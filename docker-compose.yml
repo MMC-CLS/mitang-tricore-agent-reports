@@ -1,0 +1,136 @@
+# docker-compose.yml — TriCore Agent v1.0 生产部署配置
+# 启动: docker-compose up -d
+# 查看日志: docker-compose logs -f
+# 停止: docker-compose down
+# 重建: docker-compose up -d --build
+
+version: '3.8'
+
+services:
+  # ── 主服务: TriCore Agent ──
+  tricore:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mitang-tricore-agent:1.0.0
+    container_name: tricore-agent
+    restart: unless-stopped
+    ports:
+      - "${TRICORE_API_PORT:-3721}:3721"      # API 服务
+      - "${TRICORE_HEALTH_PORT:-3722}:3722"    # 健康检查
+    environment:
+      - NODE_ENV=production
+      # LLM 配置
+      - LLM_PROVIDER=${LLM_PROVIDER:-deepseek}
+      - LLM_API_KEY=${LLM_API_KEY:?请设置 LLM_API_KEY 环境变量}
+      - LLM_MODEL=${LLM_MODEL:-}
+      # 多Provider（可选）
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - QWEN_API_KEY=${QWEN_API_KEY:-}
+      - ZHIPU_API_KEY=${ZHIPU_API_KEY:-}
+      - MOONSHOT_API_KEY=${MOONSHOT_API_KEY:-}
+      - MINIMAX_API_KEY=${MINIMAX_API_KEY:-}
+      # TriCore 配置
+      - TRICORE_DATA_DIR=/app/data
+      - TRICORE_LOG_DIR=/app/data/logs
+      - TRICORE_ALLOW_LAN=${TRICORE_ALLOW_LAN:-0}
+      - TRICORE_API_TOKEN=${TRICORE_API_TOKEN:-}
+      - TRICORE_ADMIN_PASSWORD=${TRICORE_ADMIN_PASSWORD:-}
+      # 性能调优
+      - TRICORE_TICK_CONCURRENCY=${TRICORE_TICK_CONCURRENCY:-2}
+      - TRICORE_HOURLY_BUDGET=${TRICORE_HOURLY_BUDGET:-50000}
+      # 持久化
+      - TRICORE_PERSIST_ENABLED=${TRICORE_PERSIST_ENABLED:-true}
+    volumes:
+      # 持久化数据
+      - tricore-data:/app/data
+      # 日志（可挂载到宿主机）
+      - tricore-logs:/app/data/logs
+      # 配置文件（可选覆盖）
+      - ${TRICORE_CONFIG_DIR:-./data/config}:/app/data/config:ro
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3722/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: ${TRICORE_MEMORY_LIMIT:-1G}
+          cpus: '${TRICORE_CPU_LIMIT:-2.0}'
+        reservations:
+          memory: ${TRICORE_MEMORY_RESERVE:-256M}
+          cpus: '${TRICORE_CPU_RESERVE:-0.5}'
+    logging:
+      driver: json-file
+      options:
+        max-size: "${LOG_MAX_SIZE:-20m}"
+        max-file: "${LOG_MAX_FILES:-5}"
+        compress: "true"
+    networks:
+      - tricore-net
+    # 安全加固
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    tmpfs:
+      - /tmp:size=64M
+
+  # ── 可选: Prometheus 监控 ──
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: tricore-prometheus
+    restart: unless-stopped
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+    profiles:
+      - monitoring
+    networks:
+      - tricore-net
+
+  # ── 可选: Grafana 可视化 ──
+  grafana:
+    image: grafana/grafana:latest
+    container_name: tricore-grafana
+    restart: unless-stopped
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./deploy/grafana-dashboards:/etc/grafana/provisioning/dashboards:ro
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-tricore-grafana-change-me}
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    profiles:
+      - monitoring
+    networks:
+      - tricore-net
+
+# ── 数据卷 ──
+volumes:
+  tricore-data:
+    driver: local
+    name: tricore-data-v1
+  tricore-logs:
+    driver: local
+    name: tricore-logs-v1
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+# ── 网络 ──
+networks:
+  tricore-net:
+    driver: bridge
+    name: tricore-net

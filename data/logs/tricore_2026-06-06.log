@@ -1,0 +1,1 @@
+{"timestamp":"2026-06-06T12:33:26.814Z","level":"WARN","levelValue":30,"message":"未配置管理员密码，已生成随机密码","module":"rbac","data":{"hint":"请通过adminPassword选项或TRICORE_ADMIN_PASSWORD环境变量设置密码"}}

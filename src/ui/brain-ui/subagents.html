@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>子智能体管理 — 蜜糖 TriCore Agent</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="subagents.css">
+  <link rel="stylesheet" href="../shared/settings-panel.css">
+</head>
+<body>
+  <div id="app">
+    <!-- ═══════════════════════ 顶部导航栏 ═══════════════════════ -->
+    <header class="top-bar">
+      <div class="logo">
+        <span class="logo-icon">🤖</span>
+        <span class="logo-text">子智能体管理中心</span>
+        <span class="version" id="version">v3.0.0</span>
+      </div>
+      <nav class="top-nav">
+        <a href="index.html">📊 总览</a>
+        <a href="chat.html">💬 对话</a>
+        <a href="memory-graph.html">🕸 记忆图谱</a>
+        <a href="pipeline.html">⚛ 消息管道</a>
+        <a href="subagents.html" class="active">🤖 子智能体</a>
+      </nav>
+      <div class="top-actions">
+        <div class="status-indicators" id="top-indicators">
+          <div class="indicator" id="ind-agents" title="子智能体状态">
+            <span class="dot"></span><span class="label">就绪</span>
+          </div>
+        </div>
+        <button class="btn-icon" id="btn-settings" title="系统设置">⚙️</button>
+      </div>
+    </header>
+
+    <!-- ═══════════════════════ 主内容区 ═══════════════════════ -->
+    <div class="subagents-main">
+      <!-- ── 左侧导航面板 ── -->
+      <aside class="subagents-sidebar">
+        <div class="sidebar-section">
+          <div class="sidebar-title">导航</div>
+          <nav class="sidebar-nav">
+            <a class="nav-item active" data-view="dashboard" onclick="switchView('dashboard')">
+              <span class="nav-icon">📊</span> 仪表盘
+            </a>
+            <a class="nav-item" data-view="list" onclick="switchView('list')">
+              <span class="nav-icon">📋</span> 智能体列表
+            </a>
+            <a class="nav-item" data-view="teams" onclick="switchView('teams')">
+              <span class="nav-icon">👥</span> 团队管理
+            </a>
+            <a class="nav-item" data-view="skills" onclick="switchView('skills')">
+              <span class="nav-icon">🧩</span> 技能市场
+            </a>
+            <a class="nav-item" data-view="monitor" onclick="switchView('monitor')">
+              <span class="nav-icon">📡</span> 监控中心
+            </a>
+            <a class="nav-item" data-view="security" onclick="switchView('security')">
+              <span class="nav-icon">🔒</span> 安全审计
+            </a>
+          </nav>
+        </div>
+        <div class="sidebar-section">
+          <div class="sidebar-title">快捷操作</div>
+          <button class="sidebar-action-btn btn-create" onclick="openCreateAgentWizard()">
+            ✨ 创建子智能体
+          </button>
+          <button class="sidebar-action-btn btn-team" onclick="openTeamCreator()">
+            👥 组建团队
+          </button>
+          <button class="sidebar-action-btn btn-market" onclick="openSkillMarket()">
+            🏪 技能市场
+          </button>
+        </div>
+        <div class="sidebar-section">
+          <div class="sidebar-title">系统状态</div>
+          <div class="sidebar-stats">
+            <div class="sidebar-stat">
+              <span class="ss-label">活跃智能体</span>
+              <span class="ss-value" id="sidebar-active">0</span>
+            </div>
+            <div class="sidebar-stat">
+              <span class="ss-label">总智能体数</span>
+              <span class="ss-value" id="sidebar-total">0</span>
+            </div>
+            <div class="sidebar-stat">
+              <span class="ss-label">活跃团队</span>
+              <span class="ss-value" id="sidebar-teams">0</span>
+            </div>
+            <div class="sidebar-stat">
+              <span class="ss-label">已安装技能</span>
+              <span class="ss-value" id="sidebar-skills">0</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- ── 右侧主内容区 ── -->
+      <div class="subagents-content">
+
+        <!-- ★ 视图1: 仪表盘 (Dashboard) -->
+        <section class="view-panel active" id="view-dashboard">
+          <!-- 统计卡片行 -->
+          <div class="dashboard-cards">
+            <div class="dash-card dash-card-agents">
+              <div class="dash-card-icon">🤖</div>
+              <div class="dash-card-info">
+                <div class="dash-card-value" id="dash-total-agents">0</div>
+                <div class="dash-card-label">子智能体总数</div>
+              </div>
+              <div class="dash-card-trend up" id="dash-agents-trend">+0 本周</div>
+            </div>
+            <div class="dash-card dash-card-active">
+              <div class="dash-card-icon">🟢</div>
+              <div class="dash-card-info">
+                <div class="dash-card-value" id="dash-active-agents">0</div>
+                <div class="dash-card-label">活跃运行中</div>
+              </div>
+              <div class="dash-card-trend" id="dash-active-pct">0%</div>
+            </div>
+            <div class="dash-card dash-card-teams">
+              <div class="dash-card-icon">👥</div>
+              <div class="dash-card-info">
+                <div class="dash-card-value" id="dash-total-teams">0</div>
+                <div class="dash-card-label">协作团队</div>
+              </div>
+              <div class="dash-card-trend up" id="dash-teams-trend">+0 本周</div>
+            </div>
+            <div class="dash-card dash-card-skills">
+              <div class="dash-card-icon">🧩</div>
+              <div class="dash-card-info">
+                <div class="dash-card-value" id="dash-total-skills">0</div>
+                <div class="dash-card-label">已安装技能</div>
+              </div>
+              <div class="dash-card-trend" id="dash-skills-active">0 已启用</div>
+            </div>
+            <div class="dash-card dash-card-messages">
+              <div class="dash-card-icon">💬</div>
+              <div class="dash-card-info">
+                <div class="dash-card-value" id="dash-total-msgs">0</div>
+                <div class="dash-card-label">今日消息量</div>
+              </div>
+              <div class="dash-card-trend up" id="dash-msgs-trend">+0/h</div>
+            </div>
+            <div class="dash-card dash-card-uptime">
+              <div class="dash-card-icon">⏱</div>
+              <div class="dash-card-info">
+                <div class="dash-card-value" id="dash-uptime">0h</div>
+                <div class="dash-card-label">系统运行时间</div>
+              </div>
+              <div class="dash-card-trend" id="dash-errors">0 错误</div>
+            </div>
+          </div>
+
+          <!-- 双列布局 -->
+          <div class="dashboard-grid">
+            <!-- 左列：最近活动的智能体 -->
+            <div class="dash-panel">
+              <div class="dash-panel-header">
+                <h3>🟢 活跃子智能体</h3>
+                <button class="btn-mini" onclick="switchView('list')">查看全部 →</button>
+              </div>
+              <div class="dash-panel-body" id="dash-active-list">
+                <div class="empty-state">暂无活跃子智能体</div>
+              </div>
+            </div>
+
+            <!-- 右列：最近消息流 -->
+            <div class="dash-panel">
+              <div class="dash-panel-header">
+                <h3>💬 实时消息流</h3>
+                <div class="dash-panel-actions">
+                  <button class="btn-mini" id="btn-pause-stream" onclick="toggleMessageStream()">⏸ 暂停</button>
+                </div>
+              </div>
+              <div class="dash-panel-body stream-body" id="dash-message-stream">
+                <div class="empty-state">消息流就绪，等待活动...</div>
+              </div>
+            </div>
+
+            <!-- 左列底部：资源使用率 -->
+            <div class="dash-panel">
+              <div class="dash-panel-header">
+                <h3>📊 资源使用率</h3>
+              </div>
+              <div class="dash-panel-body">
+                <div class="resource-bars" id="dash-resources">
+                  <div class="resource-bar-item">
+                    <div class="rb-header"><span>CPU</span><span id="res-cpu-val">0%</span></div>
+                    <div class="rb-track"><div class="rb-fill cpu-fill" id="res-cpu-fill" style="width:0%"></div></div>
+                  </div>
+                  <div class="resource-bar-item">
+                    <div class="rb-header"><span>内存</span><span id="res-mem-val">0%</span></div>
+                    <div class="rb-track"><div class="rb-fill mem-fill" id="res-mem-fill" style="width:0%"></div></div>
+                  </div>
+                  <div class="resource-bar-item">
+                    <div class="rb-header"><span>Token配额</span><span id="res-token-val">0/0</span></div>
+                    <div class="rb-track"><div class="rb-fill token-fill" id="res-token-fill" style="width:0%"></div></div>
+                  </div>
+                  <div class="resource-bar-item">
+                    <div class="rb-header"><span>并发槽位</span><span id="res-slot-val">0/0</span></div>
+                    <div class="rb-track"><div class="rb-fill slot-fill" id="res-slot-fill" style="width:0%"></div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 右列底部：类型分布 -->
+            <div class="dash-panel">
+              <div class="dash-panel-header">
+                <h3>🎯 智能体类型分布</h3>
+              </div>
+              <div class="dash-panel-body">
+                <div class="type-distribution" id="dash-type-dist">
+                  <div class="type-bar-item">
+                    <div class="tb-header"><span>🔧 通用助手</span><span id="type-assistant">0</span></div>
+                    <div class="tb-track"><div class="tb-fill type-assistant" style="width:0%"></div></div>
+                  </div>
+                  <div class="type-bar-item">
+                    <div class="tb-header"><span>📊 数据分析</span><span id="type-analyst">0</span></div>
+                    <div class="tb-track"><div class="tb-fill type-analyst" style="width:0%"></div></div>
+                  </div>
+                  <div class="type-bar-item">
+                    <div class="tb-header"><span>⚡ 任务执行</span><span id="type-executor">0</span></div>
+                    <div class="tb-track"><div class="tb-fill type-executor" style="width:0%"></div></div>
+                  </div>
+                  <div class="type-bar-item">
+                    <div class="tb-header"><span>🛡 监控守护</span><span id="type-monitor">0</span></div>
+                    <div class="tb-track"><div class="tb-fill type-monitor" style="width:0%"></div></div>
+                  </div>
+                  <div class="type-bar-item">
+                    <div class="tb-header"><span>🎨 自定义</span><span id="type-custom">0</span></div>
+                    <div class="tb-track"><div class="tb-fill type-custom" style="width:0%"></div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ★ 视图2: 智能体列表 (List) -->
+        <section class="view-panel" id="view-list">
+          <div class="view-toolbar">
+            <div class="toolbar-left">
+              <div class="search-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="agent-search" placeholder="搜索子智能体名称、类型、描述..." oninput="filterAgentList()">
+              </div>
+              <div class="filter-group">
+                <select id="filter-status" onchange="filterAgentList()">
+                  <option value="all">全部状态</option>
+                  <option value="running">运行中</option>
+                  <option value="stopped">已停止</option>
+                  <option value="pending">等待中</option>
+                  <option value="error">异常</option>
+                </select>
+                <select id="filter-type" onchange="filterAgentList()">
+                  <option value="all">全部类型</option>
+                  <option value="assistant">通用助手</option>
+                  <option value="analyst">数据分析</option>
+                  <option value="executor">任务执行</option>
+                  <option value="monitor">监控守护</option>
+                  <option value="custom">自定义</option>
+                </select>
+                <select id="filter-safety" onchange="filterAgentList()">
+                  <option value="all">全部安全等级</option>
+                  <option value="low">低</option>
+                  <option value="medium">中</option>
+                  <option value="high">高</option>
+                  <option value="maximum">最高</option>
+                </select>
+              </div>
+            </div>
+            <div class="toolbar-right">
+              <div class="view-toggle">
+                <button class="view-toggle-btn active" data-layout="grid" onclick="setListLayout('grid')" title="网格视图">▦</button>
+                <button class="view-toggle-btn" data-layout="table" onclick="setListLayout('table')" title="表格视图">☰</button>
+              </div>
+              <button class="btn-primary" onclick="openCreateAgentWizard()">✨ 创建子智能体</button>
+              <button class="btn-secondary" onclick="refreshAgentList()">↻ 刷新</button>
+            </div>
+          </div>
+
+          <!-- 网格视图 -->
+          <div class="agent-grid" id="agent-grid">
+            <!-- 动态填充 -->
+          </div>
+
+          <!-- 表格视图 -->
+          <div class="agent-table-container" id="agent-table-container" style="display:none;">
+            <table class="agent-table">
+              <thead>
+                <tr>
+                  <th>名称</th>
+                  <th>类型</th>
+                  <th>状态</th>
+                  <th>安全等级</th>
+                  <th>资源配额</th>
+                  <th>消息数</th>
+                  <th>创建时间</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="agent-table-body">
+                <!-- 动态填充 -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- 分页 -->
+          <div class="pagination" id="agent-pagination">
+            <span class="page-info" id="page-info">显示 0/0</span>
+          </div>
+        </section>
+
+        <!-- ★ 视图3: 团队管理 (Teams) -->
+        <section class="view-panel" id="view-teams">
+          <div class="view-toolbar">
+            <div class="toolbar-left">
+              <h2>👥 团队协作管理</h2>
+            </div>
+            <div class="toolbar-right">
+              <button class="btn-primary" onclick="openTeamCreator()">+ 新建团队</button>
+              <button class="btn-secondary" onclick="refreshTeams()">↻ 刷新</button>
+            </div>
+          </div>
+          <div class="team-grid" id="team-grid">
+            <!-- 动态填充 -->
+          </div>
+        </section>
+
+        <!-- ★ 视图4: 技能市场 (Skills) -->
+        <section class="view-panel" id="view-skills">
+          <div class="view-toolbar">
+            <div class="toolbar-left">
+              <h2>🧩 技能市场与管理</h2>
+              <div class="skill-tabs">
+                <button class="skill-tab active" data-tab="installed" onclick="switchSkillTab('installed')">已安装</button>
+                <button class="skill-tab" data-tab="market" onclick="switchSkillTab('market')">技能市场</button>
+                <button class="skill-tab" data-tab="pending" onclick="switchSkillTab('pending')">待审核</button>
+              </div>
+            </div>
+            <div class="toolbar-right">
+              <select id="skill-agent-filter" onchange="refreshSkillView()">
+                <option value="all">全部子智能体</option>
+              </select>
+              <button class="btn-secondary" id="btn-install-skill" onclick="openSkillInstaller()">📦 安装技能</button>
+              <button class="btn-secondary" onclick="refreshSkillView()">↻ 刷新</button>
+            </div>
+          </div>
+          <div class="skill-content-area" id="skill-content-area">
+            <!-- 动态填充 -->
+          </div>
+        </section>
+
+        <!-- ★ 视图5: 监控中心 (Monitor) -->
+        <section class="view-panel" id="view-monitor">
+          <div class="view-toolbar">
+            <div class="toolbar-left">
+              <h2>📡 实时监控中心</h2>
+              <div class="monitor-tabs">
+                <button class="monitor-tab active" data-tab="live" onclick="switchMonitorTab('live')">实时日志</button>
+                <button class="monitor-tab" data-tab="performance" onclick="switchMonitorTab('performance')">性能指标</button>
+                <button class="monitor-tab" data-tab="events" onclick="switchMonitorTab('events')">事件追踪</button>
+              </div>
+            </div>
+            <div class="toolbar-right">
+              <select id="monitor-agent-filter" onchange="refreshMonitorView()">
+                <option value="all">全部子智能体</option>
+              </select>
+              <button class="btn-mini" id="btn-monitor-pause" onclick="toggleMonitorPause()">⏸ 暂停</button>
+              <button class="btn-mini" id="btn-monitor-clear" onclick="clearMonitorLogs()">🗑 清空</button>
+              <button class="btn-secondary" onclick="refreshMonitorView()">↻ 刷新</button>
+            </div>
+          </div>
+          <div class="monitor-content-area" id="monitor-content-area">
+            <div class="monitor-log-stream" id="monitor-log-stream">
+              <div class="empty-state">监控就绪，等待事件...</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ★ 视图6: 安全审计 (Security) -->
+        <section class="view-panel" id="view-security">
+          <div class="view-toolbar">
+            <div class="toolbar-left">
+              <h2>🔒 安全审计中心</h2>
+            </div>
+            <div class="toolbar-right">
+              <button class="btn-secondary" onclick="refreshSecurityView()">↻ 刷新</button>
+            </div>
+          </div>
+          <div class="security-grid">
+            <!-- 安全总览卡片 -->
+            <div class="security-overview">
+              <div class="sec-card sec-safe" id="sec-overall-status">
+                <div class="sec-card-icon">🛡</div>
+                <div class="sec-card-title">整体安全状态</div>
+                <div class="sec-card-value">安全</div>
+              </div>
+              <div class="sec-card" id="sec-violations">
+                <div class="sec-card-icon">⚠️</div>
+                <div class="sec-card-title">今日违规</div>
+                <div class="sec-card-value">0</div>
+              </div>
+              <div class="sec-card" id="sec-sandboxed">
+                <div class="sec-card-icon">📦</div>
+                <div class="sec-card-title">沙箱隔离数</div>
+                <div class="sec-card-value">0</div>
+              </div>
+              <div class="sec-card" id="sec-blocked">
+                <div class="sec-card-icon">🚫</div>
+                <div class="sec-card-title">已阻止操作</div>
+                <div class="sec-card-value">0</div>
+              </div>
+            </div>
+            <!-- 安全详情表格 -->
+            <div class="security-table-container">
+              <table class="security-table">
+                <thead>
+                  <tr>
+                    <th>时间</th>
+                    <th>子智能体</th>
+                    <th>事件类型</th>
+                    <th>严重程度</th>
+                    <th>描述</th>
+                    <th>处理结果</th>
+                  </tr>
+                </thead>
+                <tbody id="security-table-body">
+                  <tr><td colspan="6" class="empty-row">暂无安全事件记录</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════ 底部状态栏 ═══════════════════════ -->
+    <footer class="bottom-bar">
+      <div class="footer-left">
+        <span id="footer-status">● 就绪</span>
+        <span class="footer-separator">|</span>
+        <span id="footer-agents">智能体: 0/0</span>
+      </div>
+      <div class="footer-right">
+        <span id="footer-uptime">运行: 0s</span>
+        <span class="footer-separator">|</span>
+        <span id="footer-events">事件: 0</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- ═══════════════════════ 模态框区域 ═══════════════════════ -->
+
+  <!-- 创建子智能体向导对话框 -->
+  <div class="modal-overlay" id="create-agent-modal" style="display:none;">
+    <div class="modal-dialog modal-wide">
+      <div class="modal-header">
+        <h3 id="create-agent-title">✨ 创建子智能体</h3>
+        <button class="btn-close" onclick="closeCreateAgentWizard()">✕</button>
+      </div>
+      <div class="modal-body">
+        <!-- 步骤指示器 -->
+        <div class="wizard-steps">
+          <div class="wizard-step active" data-step="1">
+            <span class="step-number">1</span>
+            <span class="step-label">基本信息</span>
+          </div>
+          <div class="wizard-step" data-step="2">
+            <span class="step-number">2</span>
+            <span class="step-label">能力配置</span>
+          </div>
+          <div class="wizard-step" data-step="3">
+            <span class="step-number">3</span>
+            <span class="step-label">安全与资源</span>
+          </div>
+          <div class="wizard-step" data-step="4">
+            <span class="step-number">4</span>
+            <span class="step-label">确认创建</span>
+          </div>
+        </div>
+        <!-- 步骤1: 基本信息 -->
+        <div class="wizard-page active" id="wizard-page-1">
+          <div class="form-group">
+            <label>子智能体名称 <span class="required">*</span></label>
+            <input type="text" id="wiz-name" placeholder="为你的子智能体起个名字..." maxlength="50">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>类型 <span class="required">*</span></label>
+              <select id="wiz-type">
+                <option value="assistant">🔧 通用助手</option>
+                <option value="analyst">📊 数据分析</option>
+                <option value="executor">⚡ 任务执行</option>
+                <option value="monitor">🛡 监控守护</option>
+                <option value="custom">🎨 自定义</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>基础模型</label>
+              <select id="wiz-model">
+                <option value="auto">🤖 自动选择</option>
+                <option value="gpt-4o">GPT-4o</option>
+                <option value="claude-3.5">Claude 3.5 Sonnet</option>
+                <option value="deepseek-v3">DeepSeek V3</option>
+                <option value="qwen-max">Qwen Max</option>
+                <option value="glm-4">GLM-4</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>描述</label>
+            <textarea id="wiz-description" placeholder="描述子智能体的用途、专长和能力范围..." rows="3"></textarea>
+          </div>
+          <div class="form-group">
+            <label>系统提示词 (System Prompt)</label>
+            <textarea id="wiz-system-prompt" placeholder="定义子智能体的行为准则和专业角色..." rows="4"></textarea>
+          </div>
+        </div>
+        <!-- 步骤2: 能力配置 -->
+        <div class="wizard-page" id="wizard-page-2">
+          <div class="form-group">
+            <label>推理模式</label>
+            <select id="wiz-reasoning">
+              <option value="direct">⚡ 直接响应（快速）</option>
+              <option value="chain-of-thought" selected>🔗 思维链（深度思考）</option>
+              <option value="tree-of-thought">🌳 思维树（多路径探索）</option>
+              <option value="reflexion">🔄 反思模式（自我修正）</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>可用工具</label>
+            <div class="checkbox-grid" id="wiz-tools">
+              <label class="checkbox-card">
+                <input type="checkbox" value="web_search" checked> 🌐 网络搜索
+              </label>
+              <label class="checkbox-card">
+                <input type="checkbox" value="file_io" checked> 📁 文件读写
+              </label>
+              <label class="checkbox-card">
+                <input type="checkbox" value="code_exec"> 💻 代码执行
+              </label>
+              <label class="checkbox-card">
+                <input type="checkbox" value="browser"> 🌍 浏览器控制
+              </label>
+              <label class="checkbox-card">
+                <input type="checkbox" value="memory_rw" checked> 🧠 记忆读写
+              </label>
+              <label class="checkbox-card">
+                <input type="checkbox" value="api_call"> 🔌 API调用
+              </label>
+              <label class="checkbox-card">
+                <input type="checkbox" value="image_gen"> 🎨 图像生成
+              </label>
+              <label class="checkbox-card">
+                <input type="checkbox" value="data_analysis" checked> 📊 数据分析
+              </label>
+              <label class="checkbox-card">
+                <input type="checkbox" value="shell_exec"> ⚙ Shell执行
+              </label>
+              <label class="checkbox-card">
+                <input type="checkbox" value="rag_query" checked> 📚 RAG检索
+              </label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>预设技能（创建后自动安装）</label>
+            <div class="preset-skills" id="wiz-preset-skills">
+              <label class="checkbox-card"><input type="checkbox" value="basic_chat" checked> 💬 基础对话</label>
+              <label class="checkbox-card"><input type="checkbox" value="code_review"> 🔍 代码审查</label>
+              <label class="checkbox-card"><input type="checkbox" value="doc_writer"> 📝 文档撰写</label>
+              <label class="checkbox-card"><input type="checkbox" value="data_viz"> 📈 数据可视化</label>
+              <label class="checkbox-card"><input type="checkbox" value="translator"> 🌍 多语言翻译</label>
+              <label class="checkbox-card"><input type="checkbox" value="debugger"> 🐛 调试助手</label>
+            </div>
+          </div>
+        </div>
+        <!-- 步骤3: 安全与资源 -->
+        <div class="wizard-page" id="wizard-page-3">
+          <div class="form-row">
+            <div class="form-group">
+              <label>安全等级</label>
+              <select id="wiz-security">
+                <option value="low">🟢 低 - 基础监控</option>
+                <option value="medium" selected>🟡 中 - 标准防护</option>
+                <option value="high">🟠 高 - 严格沙箱</option>
+                <option value="maximum">🔴 最高 - 完全隔离</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>资源配额</label>
+              <select id="wiz-quota">
+                <option value="minimal">最小 (10% 资源)</option>
+                <option value="low">低 (25% 资源)</option>
+                <option value="medium" selected>中 (50% 资源)</option>
+                <option value="high">高 (75% 资源)</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>最大并发请求</label>
+            <input type="range" id="wiz-concurrency" min="1" max="10" value="3" oninput="document.getElementById('wiz-concurrency-val').textContent=this.value">
+            <span class="range-value" id="wiz-concurrency-val">3</span>
+          </div>
+          <div class="form-group">
+            <label>Token预算上限</label>
+            <input type="range" id="wiz-token-budget" min="1000" max="100000" step="1000" value="10000" oninput="document.getElementById('wiz-token-val').textContent=(this.value/1000).toFixed(0)+'K'">
+            <span class="range-value" id="wiz-token-val">10K</span>
+          </div>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="wiz-auto-start" checked> 创建后自动启动
+            </label>
+          </div>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="wiz-audit-log" checked> 启用审计日志
+            </label>
+          </div>
+        </div>
+        <!-- 步骤4: 确认创建 -->
+        <div class="wizard-page" id="wizard-page-4">
+          <div class="confirm-summary">
+            <h4>📋 创建确认</h4>
+            <div class="confirm-grid" id="confirm-summary-content">
+              <!-- 动态填充 -->
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="wiz-btn-prev" onclick="wizardPrev()" style="display:none;">← 上一步</button>
+        <button class="btn-primary" id="wiz-btn-next" onclick="wizardNext()">下一步 →</button>
+        <button class="btn-primary" id="wiz-btn-create" onclick="confirmCreateAgent()" style="display:none;">✨ 创建子智能体</button>
+        <button class="btn-secondary" onclick="closeCreateAgentWizard()">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 子智能体详情对话框 -->
+  <div class="modal-overlay" id="agent-detail-modal" style="display:none;">
+    <div class="modal-dialog modal-chat">
+      <div class="modal-header">
+        <h3 id="agent-detail-title">🤖 子智能体详情</h3>
+        <div class="chat-header-actions">
+          <button class="btn-mini" id="btn-detail-chat" onclick="openAgentChatFromDetail()">💬 对话</button>
+          <button class="btn-mini" id="btn-detail-toggle" onclick="toggleAgentFromDetail()">▶ 启动</button>
+          <button class="btn-close" onclick="closeAgentDetail()">✕</button>
+        </div>
+      </div>
+      <div class="detail-layout">
+        <!-- 左侧标签页 -->
+        <div class="detail-tabs">
+          <button class="detail-tab active" data-tab="overview" onclick="switchDetailTab('overview')">概览</button>
+          <button class="detail-tab" data-tab="sessions" onclick="switchDetailTab('sessions')">会话</button>
+          <button class="detail-tab" data-tab="skills" onclick="switchDetailTab('skills')">技能</button>
+          <button class="detail-tab" data-tab="logs" onclick="switchDetailTab('logs')">日志</button>
+          <button class="detail-tab" data-tab="security" onclick="switchDetailTab('security')">安全</button>
+        </div>
+        <!-- 标签页内容 -->
+        <div class="detail-tab-content active" id="detail-tab-overview"></div>
+        <div class="detail-tab-content" id="detail-tab-sessions"></div>
+        <div class="detail-tab-content" id="detail-tab-skills"></div>
+        <div class="detail-tab-content" id="detail-tab-logs"></div>
+        <div class="detail-tab-content" id="detail-tab-security"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 子智能体对话对话框 -->
+  <div class="modal-overlay" id="agent-chat-modal" style="display:none;">
+    <div class="modal-dialog modal-chat">
+      <div class="modal-header">
+        <h3 id="agent-chat-title">💬 对话</h3>
+        <div class="chat-header-actions">
+          <button class="btn-mini" id="btn-chat-new" onclick="agentChatNewSession()">+ 新会话</button>
+          <button class="btn-mini" id="btn-chat-clear" onclick="agentChatClear()">清空</button>
+          <button class="btn-close" onclick="closeAgentChat()">✕</button>
+        </div>
+      </div>
+      <div class="chat-layout">
+        <div class="chat-session-sidebar" id="agent-chat-sidebar">
+          <div class="session-list-header">会话列表</div>
+          <div class="session-list" id="agent-chat-sessions"></div>
+        </div>
+        <div class="chat-main-area">
+          <div class="chat-engine-status" id="agent-chat-engine">
+            <span class="engine-indicator">● 就绪</span>
+            <span class="engine-info"></span>
+          </div>
+          <div class="chat-message-area" id="agent-chat-messages">
+            <div class="chat-empty">选择或新建一个会话开始对话</div>
+          </div>
+          <div class="chat-input-area">
+            <textarea id="agent-chat-input" placeholder="输入消息... (Enter发送, Shift+Enter换行)" rows="2"></textarea>
+            <button class="btn-primary" id="btn-agent-chat-send" onclick="agentChatSend()">发送</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 团队创建对话框 -->
+  <div class="modal-overlay" id="team-create-modal" style="display:none;">
+    <div class="modal-dialog modal-wide">
+      <div class="modal-header">
+        <h3>👥 创建团队</h3>
+        <button class="btn-close" onclick="closeTeamCreator()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>团队名称 <span class="required">*</span></label>
+          <input type="text" id="team-name" placeholder="为你的团队起个名字..." maxlength="50">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>团队类型</label>
+            <select id="team-type">
+              <option value="task_force">⚡ 任务执行团队</option>
+              <option value="discussion">💬 讨论组</option>
+              <option value="pipeline">🔗 流水线团队</option>
+              <option value="custom">🎨 自定义团队</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>协调模式</label>
+            <select id="team-coordination">
+              <option value="round_robin">🔄 轮询调度</option>
+              <option value="broadcast">📢 广播通知</option>
+              <option value="vote">🗳 投票决策</option>
+              <option value="hierarchical">🏛 层级指挥</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>团队目标</label>
+          <textarea id="team-goal" placeholder="描述团队的共同目标和使命..." rows="2"></textarea>
+        </div>
+        <div class="form-group">
+          <label>选择成员（可多选）</label>
+          <div class="member-select-list" id="team-member-select">
+            <!-- 动态填充 -->
+          </div>
+        </div>
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="team-require-consent" checked> 执行操作前需要用户确认
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeTeamCreator()">取消</button>
+        <button class="btn-primary" onclick="confirmCreateTeam()">创建团队</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 技能安装对话框 -->
+  <div class="modal-overlay" id="skill-install-modal" style="display:none;">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>📦 安装技能</h3>
+        <button class="btn-close" onclick="closeSkillInstaller()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="install-methods">
+          <button class="install-method-btn active" data-method="market" onclick="switchInstallMethod('market')">🏪 从市场安装</button>
+          <button class="install-method-btn" data-method="file" onclick="switchInstallMethod('file')">📂 从文件安装</button>
+          <button class="install-method-btn" data-method="paste" onclick="switchInstallMethod('paste')">📝 粘贴内容</button>
+        </div>
+        <div class="install-method-content active" id="install-method-market">
+          <div class="form-group">
+            <label>目标子智能体</label>
+            <select id="skill-target-agent-market"></select>
+          </div>
+          <div class="skill-market-list" id="skill-market-list">
+            <!-- 动态填充 -->
+          </div>
+        </div>
+        <div class="install-method-content" id="install-method-file">
+          <div class="form-group">
+            <label>目标子智能体</label>
+            <select id="skill-target-agent-file"></select>
+          </div>
+          <div class="form-group">
+            <label>选择技能文件 (.skill.md, .zip, .tar.gz)</label>
+            <div class="file-drop-zone" id="skill-file-drop" onclick="document.getElementById('skill-file-input').click()">
+              <span>📁 拖拽文件到此处或点击选择</span>
+              <input type="file" id="skill-file-input" accept=".skill,.skill.md,.md,.zip,.tar.gz,.tgz" style="display:none;" onchange="handleSkillFileSelect(event)">
+            </div>
+          </div>
+        </div>
+        <div class="install-method-content" id="install-method-paste">
+          <div class="form-group">
+            <label>目标子智能体</label>
+            <select id="skill-target-agent-paste"></select>
+          </div>
+          <div class="form-group">
+            <label>技能内容 (SKILL.md 格式)</label>
+            <textarea id="skill-paste-content" placeholder="# 技能名称&#10;> 简短描述&#10;&#10;## Description&#10;详细描述...&#10;&#10;## Category&#10;analysis&#10;&#10;## Instructions&#10;技能指令内容..." rows="12"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeSkillInstaller()">取消</button>
+        <button class="btn-primary" onclick="confirmInstallSkill()">安装技能</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 确认对话框 -->
+  <div class="modal-overlay" id="confirm-modal" style="display:none;">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="confirm-title">⚠️ 确认操作</h3>
+      </div>
+      <div class="modal-body" id="confirm-body">
+        <!-- 动态填充 -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="btn-confirm-cancel">取消</button>
+        <button class="btn-danger" id="btn-confirm-ok">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 通知提示 -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="subagents.js"></script>
+  <script src="../shared/settings-manager.js"></script>
+  <script src="../shared/settings-panel.js"></script>
+  <!-- v6.0: 首次启动向导 & 系统自检 -->
+  <script src="../shared/onboarding-wizard.js"></script>
+  <script src="../shared/self-check-panel.js"></script>
+</body>
+</html>

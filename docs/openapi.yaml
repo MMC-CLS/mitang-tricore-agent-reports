@@ -1,0 +1,528 @@
+openapi: "3.0.3"
+info:
+  title: "TriCore Agent API"
+  description: "三核融合智能体 REST API - 意识感(白龙马) + 执行力(龙虾) + 成长性(爱马仕)"
+  version: "2.4.0"
+  contact:
+    name: "TriCore Team"
+  license:
+    name: "MIT"
+
+servers:
+  - url: "http://localhost:3721"
+    description: "本地开发服务器"
+  - url: "https://api.tricore.example.com"
+    description: "生产服务器"
+
+tags:
+  - name: "Auth"
+    description: "认证与授权"
+  - name: "Message"
+    description: "消息接口"
+  - name: "Task"
+    description: "任务管理"
+  - name: "Memory"
+    description: "记忆管理"
+  - name: "RAG"
+    description: "检索增强生成"
+  - name: "Multimodal"
+    description: "多模态感知"
+  - name: "RBAC"
+    description: "角色权限管理"
+  - name: "Audit"
+    description: "审计日志"
+  - name: "System"
+    description: "系统管理"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+        details:
+          type: object
+
+    MessageRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          description: "消息内容"
+        userId:
+          type: string
+          description: "用户ID"
+        channel:
+          type: string
+          enum: [api, social, voice]
+          default: api
+        priority:
+          type: integer
+          minimum: 0
+          maximum: 100
+
+    MessageResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [queued, processing, completed, failed]
+
+    TaskRequest:
+      type: object
+      required:
+        - goal
+      properties:
+        goal:
+          type: string
+        context:
+          type: object
+
+    TaskResponse:
+      type: object
+      properties:
+        taskId:
+          type: string
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+
+    MemorySearchRequest:
+      type: object
+      properties:
+        query:
+          type: string
+        limit:
+          type: integer
+          default: 10
+
+    StatusResponse:
+      type: object
+      properties:
+        version:
+          type: string
+        running:
+          type: boolean
+        scheduler:
+          type: object
+        consciousness:
+          type: object
+        execution:
+          type: object
+        evolution:
+          type: object
+        memory:
+          type: object
+        budget:
+          type: object
+        logger:
+          type: object
+        errorHandler:
+          type: object
+
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+
+    LoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        token:
+          type: string
+        expiresAt:
+          type: integer
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+            username:
+              type: string
+            roles:
+              type: array
+              items:
+                type: string
+
+    RAGAddDocumentRequest:
+      type: object
+      required:
+        - title
+        - content
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        metadata:
+          type: object
+
+    RAGRetrieveRequest:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+        topK:
+          type: integer
+          default: 5
+
+    AuditQueryRequest:
+      type: object
+      properties:
+        userId:
+          type: string
+        level:
+          type: string
+          enum: [info, warn, error, critical, compliance]
+        since:
+          type: integer
+        until:
+          type: integer
+        limit:
+          type: integer
+          default: 100
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+paths:
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: "用户登录"
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: "登录成功"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          description: "认证失败"
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: "用户登出"
+      operationId: logout
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: "登出成功"
+
+  /api/message/send:
+    post:
+      tags: [Message]
+      summary: "发送消息"
+      operationId: sendMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessageRequest"
+      responses:
+        "200":
+          description: "消息已接收"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /api/message/stream:
+    get:
+      tags: [Message]
+      summary: "SSE事件流"
+      operationId: streamEvents
+      responses:
+        "200":
+          description: "SSE事件流"
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /api/task/submit:
+    post:
+      tags: [Task]
+      summary: "提交执行任务"
+      operationId: submitTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskRequest"
+      responses:
+        "200":
+          description: "任务已提交"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskResponse"
+        "403":
+          description: "安全边界拒绝"
+
+  /api/memory/search:
+    post:
+      tags: [Memory]
+      summary: "搜索记忆"
+      operationId: searchMemories
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemorySearchRequest"
+      responses:
+        "200":
+          description: "搜索结果"
+
+  /api/rag/document:
+    post:
+      tags: [RAG]
+      summary: "添加RAG文档"
+      operationId: addDocument
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RAGAddDocumentRequest"
+      responses:
+        "200":
+          description: "文档已添加"
+
+  /api/rag/retrieve:
+    post:
+      tags: [RAG]
+      summary: "检索文档"
+      operationId: retrieve
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RAGRetrieveRequest"
+      responses:
+        "200":
+          description: "检索结果"
+
+  /api/rag/documents:
+    get:
+      tags: [RAG]
+      summary: "列出所有文档"
+      operationId: listDocuments
+      responses:
+        "200":
+          description: "文档列表"
+
+  /api/multimodal/analyze:
+    post:
+      tags: [Multimodal]
+      summary: "分析图片"
+      operationId: analyzeImage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                imagePath:
+                  type: string
+                prompt:
+                  type: string
+      responses:
+        "200":
+          description: "分析结果"
+
+  /api/multimodal/ocr:
+    post:
+      tags: [Multimodal]
+      summary: "OCR识别"
+      operationId: ocr
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                imagePath:
+                  type: string
+                language:
+                  type: string
+      responses:
+        "200":
+          description: "OCR结果"
+
+  /api/rbac/users:
+    get:
+      tags: [RBAC]
+      summary: "获取用户列表"
+      operationId: getUsers
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: "用户列表"
+    post:
+      tags: [RBAC]
+      summary: "创建用户"
+      operationId: createUser
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+                roles:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "201":
+          description: "用户已创建"
+
+  /api/audit/query:
+    post:
+      tags: [Audit]
+      summary: "查询审计日志"
+      operationId: queryAudit
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuditQueryRequest"
+      responses:
+        "200":
+          description: "审计日志结果"
+
+  /api/audit/report:
+    post:
+      tags: [Audit]
+      summary: "生成合规报告"
+      operationId: generateReport
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                startDate:
+                  type: integer
+                endDate:
+                  type: integer
+      responses:
+        "200":
+          description: "合规报告"
+
+  /api/system/status:
+    get:
+      tags: [System]
+      summary: "获取系统状态"
+      operationId: getStatus
+      responses:
+        "200":
+          description: "系统状态"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+
+  /api/system/diagnostics:
+    get:
+      tags: [System]
+      summary: "获取诊断信息"
+      operationId: getDiagnostics
+      responses:
+        "200":
+          description: "诊断信息"
+
+  /api/system/budget:
+    get:
+      tags: [System]
+      summary: "获取Token预算状态"
+      operationId: getBudget
+      responses:
+        "200":
+          description: "预算状态"
+
+  /api/system/config:
+    get:
+      tags: [System]
+      summary: "获取配置"
+      operationId: getConfig
+      parameters:
+        - name: key
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "配置值"
+    put:
+      tags: [System]
+      summary: "设置配置"
+      operationId: setConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                key:
+                  type: string
+                value: {}
+      responses:
+        "200":
+          description: "配置已更新"

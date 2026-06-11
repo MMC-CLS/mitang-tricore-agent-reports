@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>记忆网络图 — 蜜糖 TriCore Agent</title>
+  <style>
+    :root {
+      --bg: #0a0a1a; --panel: #111128; --card: #16163a; --text: #e0e0ff;
+      --text2: #8888bb; --text3: #555580; --accent: #4488ff;
+      --border: #2a2a5a; --radius: 8px;
+      --cyan: #44ddff; --green: #44dd88; --yellow: #ffcc44;
+      --red: #ff4466; --purple: #aa66ff; --orange: #ffa028;
+      --pink: #ff44cc; --teal: #28d2a0;
+      --hot: #ff503c; --warm: #ffa028; --cold: #5078c8;
+      --exec: #28d2a0; --skill: #b43cff; --pulsar: #ffcc00;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; background: var(--bg); color: var(--text); overflow: hidden; height: 100vh; }
+
+    /* ═══ 顶部栏 ═══ */
+    .top-bar {
+      height: 48px; background: linear-gradient(180deg, var(--panel) 0%, #0e0e2a 100%);
+      border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px;
+      justify-content: space-between; box-shadow: 0 1px 8px rgba(0,0,0,0.3);
+    }
+    .top-bar .logo { display:flex; align-items:center; gap:8px; font-size:15px; font-weight:600; }
+    .top-bar .logo .icon { font-size:20px; }
+    .top-bar .logo .icon-pulse { animation: iconPulse 3s ease-in-out infinite; }
+    @keyframes iconPulse { 0%,100% { transform:scale(1); } 50% { transform:scale(1.15); } }
+    .top-bar nav { display:flex; gap:4px; }
+    .top-bar nav a { color: var(--text2); text-decoration: none; padding: 6px 14px; border-radius: 6px; font-size: 13px; transition: all .2s; }
+    .top-bar nav a:hover { color: var(--text); background: var(--card); }
+    .top-bar nav a.active { color: var(--cyan); background: rgba(68,221,255,0.1); font-weight:600; }
+    .top-bar .controls { display:flex; gap:8px; align-items:center; }
+
+    /* ═══ 主布局 ═══ */
+    .main { display:flex; height: calc(100vh - 48px); }
+
+    /* ═══ 左侧面板 (增强版) ═══ */
+    .sidebar {
+      width: 300px; min-width: 300px; background: var(--panel);
+      border-right: 1px solid var(--border); display:flex; flex-direction:column; overflow-y:auto;
+      transition: width 0.3s ease;
+    }
+    .sidebar.collapsed { width: 48px; min-width: 48px; }
+    .sidebar-section { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+    .sidebar-section h4 { font-size: 11px; text-transform: uppercase; color: var(--text2); margin-bottom: 8px; letter-spacing: 1px; display:flex; align-items:center; gap:6px; }
+    .sidebar-section h4 .section-icon { font-size:13px; }
+
+    /* 搜索增强 */
+    .search-box-wrap { position:relative; }
+    .search-box {
+      width: 100%; padding: 8px 30px 8px 12px; background: var(--card);
+      border: 1px solid var(--border); border-radius: 6px; color: var(--text);
+      font-size: 13px; outline: none; transition: all 0.25s;
+    }
+    .search-box:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(68,136,255,0.1); }
+    .search-clear { position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text3); cursor:pointer; font-size:14px; display:none; }
+    .search-filter-row { display:flex; gap:4px; margin-top:6px; flex-wrap:wrap; }
+    .search-filter-tag { padding:2px 8px; border-radius:10px; font-size:10px; cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--text3); transition:all .2s; }
+    .search-filter-tag:hover { border-color:var(--accent); color:var(--text); }
+    .search-filter-tag.active { background:rgba(68,136,255,0.15); border-color:var(--accent); color:var(--accent); }
+
+    /* 搜索结果 */
+    .search-results { margin-top:8px; font-size:12px; max-height:180px; overflow-y:auto; }
+    .search-result-item { padding:6px 10px; border-radius:5px; cursor:pointer; display:flex; align-items:center; gap:8px; transition:all .2s; margin-bottom:2px; }
+    .search-result-item:hover { background:var(--card); }
+    .search-result-item .node-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+    .search-result-item .node-info { flex:1; min-width:0; }
+    .search-result-item .node-title { font-size:12px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .search-result-item .node-sub { font-size:10px; color:var(--text3); }
+    .search-result-item .node-score { font-size:10px; font-weight:600; color:var(--text2); }
+    .no-results { text-align:center; color:var(--text3); font-size:12px; padding:16px; }
+
+    /* 统计卡片 */
+    .stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+    .stat-card {
+      background: var(--card); border-radius:6px; padding:8px; text-align:center;
+      border:1px solid transparent; transition:all .2s; cursor:default;
+    }
+    .stat-card:hover { border-color:var(--border); }
+    .stat-card .stat-val { font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; }
+    .stat-card .stat-lbl { font-size:9px; color:var(--text3); text-transform:uppercase; margin-top:2px; }
+    .stat-card.cyan .stat-val { color:var(--cyan); }
+    .stat-card.purple .stat-val { color:var(--purple); }
+    .stat-card.green .stat-val { color:var(--green); }
+    .stat-card.yellow .stat-val { color:var(--yellow); }
+
+    /* 图例 */
+    .legend-grid { display:grid; grid-template-columns:1fr 1fr; gap:4px; }
+    .legend-item { display:flex; align-items:center; gap:6px; font-size:11px; padding:3px 0; }
+    .legend-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+    .legend-dot.pulsar { box-shadow:0 0 8px var(--pulsar); animation: pulsarGlow 2s ease-in-out infinite; }
+    @keyframes pulsarGlow { 0%,100% { box-shadow:0 0 4px var(--pulsar); } 50% { box-shadow:0 0 12px var(--pulsar); } }
+
+    /* 布局控制 */
+    .control-row { display:flex; gap:6px; margin-bottom:6px; }
+    .ctrl-select {
+      flex:1; background:var(--card); border:1px solid var(--border); color:var(--text);
+      border-radius:5px; padding:5px 8px; font-size:11px; outline:none; cursor:pointer;
+    }
+    .ctrl-select:focus { border-color:var(--accent); }
+    .slider-row { display:flex; align-items:center; gap:6px; margin-bottom:4px; }
+    .slider-row label { font-size:10px; color:var(--text3); width:55px; flex-shrink:0; }
+    .slider-row input[type=range] { flex:1; height:4px; -webkit-appearance:none; appearance:none; background:var(--border); border-radius:2px; outline:none; }
+    .slider-row input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:12px; height:12px; border-radius:50%; background:var(--cyan); cursor:pointer; box-shadow:0 0 6px var(--cyan); }
+    .slider-val { font-size:10px; color:var(--cyan); width:28px; text-align:right; font-family:'Cascadia Code',monospace; }
+
+    /* 节点详情 */
+    .node-detail-section { display:none; }
+    .node-detail { font-size:12px; line-height:1.6; }
+    .node-detail .nd-title { font-size:15px; font-weight:600; margin-bottom:6px; display:flex; align-items:center; gap:8px; }
+    .node-detail .nd-color-dot { width:12px; height:12px; border-radius:50%; }
+    .node-detail .nd-meta-row { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:6px; }
+    .node-detail .nd-tag { padding:2px 8px; border-radius:8px; font-size:10px; font-weight:600; }
+    .node-detail .nd-tag.tier0 { background:rgba(255,80,60,0.15); color:var(--hot); }
+    .node-detail .nd-tag.tier1 { background:rgba(255,160,40,0.15); color:var(--warm); }
+    .node-detail .nd-tag.tier2 { background:rgba(80,120,200,0.15); color:var(--cold); }
+    .node-detail .nd-tag.tier3 { background:rgba(40,210,160,0.15); color:var(--exec); }
+    .node-detail .nd-tag.tier4 { background:rgba(180,60,255,0.15); color:var(--skill); }
+    .node-detail .nd-content { color:var(--text2); margin:8px 0; padding:8px 10px; background:rgba(0,0,0,0.2); border-radius:5px; font-size:11px; max-height:80px; overflow-y:auto; }
+    .node-detail .nd-connections { margin-top:8px; }
+    .node-detail .nd-conn-title { font-size:11px; color:var(--text2); margin-bottom:4px; }
+    .node-detail .nd-conn-tags { display:flex; flex-wrap:wrap; gap:4px; }
+    .node-detail .nd-conn-tag { padding:3px 8px; background:var(--card); border-radius:4px; font-size:10px; cursor:pointer; transition:all .2s; border:1px solid transparent; }
+    .node-detail .nd-conn-tag:hover { border-color:var(--accent); color:var(--accent); }
+    .node-detail .nd-actions { display:flex; gap:6px; margin-top:10px; }
+
+    /* 快捷操作 */
+    .quick-actions { display:flex; gap:4px; flex-wrap:wrap; }
+    .qa-btn {
+      padding:4px 10px; border-radius:5px; font-size:10px; cursor:pointer; border:1px solid var(--border);
+      background:transparent; color:var(--text2); transition:all .2s; white-space:nowrap;
+    }
+    .qa-btn:hover { border-color:var(--accent); color:var(--accent); background:rgba(68,136,255,0.08); }
+    .qa-btn.danger:hover { border-color:var(--red); color:var(--red); background:rgba(255,68,102,0.08); }
+
+    /* ═══ 画布区域 ═══ */
+    .canvas-area { flex:1; position:relative; overflow:hidden; background:radial-gradient(ellipse at center, #0d0d2a 0%, #050515 100%); }
+    canvas { display:block; }
+
+    /* 工具栏 */
+    .toolbar { position:absolute; top:12px; right:12px; display:flex; flex-direction:column; gap:5px; z-index:10; }
+    .tool-btn {
+      width:34px; height:34px; border-radius:7px; border:1px solid var(--border);
+      background:rgba(17,17,40,0.85); color: var(--text2); font-size:15px; cursor:pointer;
+      display:flex; align-items:center; justify-content:center; transition: all .2s;
+      backdrop-filter:blur(4px);
+    }
+    .tool-btn:hover { background:var(--accent); border-color:var(--accent); color:#fff; }
+    .tool-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+    .tool-btn.recording { background:var(--red); border-color:var(--red); animation:recordPulse 1s infinite; }
+    @keyframes recordPulse { 0%,100% { box-shadow:0 0 0 rgba(255,68,102,0); } 50% { box-shadow:0 0 16px rgba(255,68,102,0.5); } }
+    .tool-divider { height:1px; background:var(--border); margin:4px 0; }
+
+    /* 浮动指示器 */
+    .float-indicator {
+      position:absolute; bottom:12px; left:12px; padding:6px 14px;
+      background:rgba(17,17,40,0.9); border:1px solid var(--border); border-radius:8px;
+      font-size:10px; color:var(--text2); display:flex; gap:14px; align-items:center;
+      backdrop-filter:blur(6px); z-index:10;
+    }
+    .float-indicator .fi-item { display:flex; align-items:center; gap:4px; }
+    .float-indicator .fi-val { color:var(--cyan); font-weight:600; font-family:'Cascadia Code',monospace; }
+
+    /* 迷你地图 */
+    .minimap {
+      position:absolute; bottom:12px; right:12px; width:140px; height:100px;
+      background:rgba(17,17,40,0.85); border:1px solid var(--border); border-radius:8px;
+      overflow:hidden; z-index:10; backdrop-filter:blur(4px);
+    }
+    .minimap canvas { width:100%; height:100%; }
+
+    /* 导出/快照通知 */
+    .snapshot-toast {
+      position:absolute; top:60px; left:50%; transform:translateX(-50%);
+      padding:8px 20px; background:var(--card); border:1px solid var(--green);
+      border-radius:8px; font-size:12px; color:var(--green); z-index:20;
+      animation: toastIn 0.3s ease-out, toastOut 0.3s 2.5s ease-in forwards;
+      pointer-events:none;
+    }
+    @keyframes toastIn { from { opacity:0; transform:translateX(-50%) translateY(-10px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+    @keyframes toastOut { from { opacity:1; } to { opacity:0; } }
+
+    /* 历史快照列表 */
+    .snapshot-list { max-height:120px; overflow-y:auto; }
+    .snapshot-item { display:flex; justify-content:space-between; align-items:center; padding:6px 8px; font-size:11px; border-radius:4px; cursor:pointer; transition:all .2s; }
+    .snapshot-item:hover { background:var(--card); }
+    .snapshot-item .snap-time { color:var(--text3); font-size:10px; }
+
+    select, button { font-family:inherit; }
+  </style>
+</head>
+<body>
+  <header class="top-bar">
+    <div class="logo">
+      <span class="icon icon-pulse">🧠</span>
+      <span>蜜糖 TriCore Agent — 记忆网络图</span>
+    </div>
+    <nav>
+      <a href="index.html">📊 总览</a>
+      <a href="chat.html">💬 对话</a>
+      <a href="memory-graph.html" class="active">🕸 记忆图谱</a>
+      <a href="pipeline.html">⚛ 消息管道</a>
+      <a href="subagents.html">🤖 子智能体</a>
+    </nav>
+    <div class="controls">
+      <span id="graph-status" style="font-size:11px;color:var(--text2);">● 就绪</span>
+      <button class="btn-settings" id="btn-settings" title="系统设置 (Ctrl+,)" style="background:transparent;border:1px solid var(--border);color:var(--text2);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:15px;transition:all .2s;">⚙️</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <!-- ═══ 左侧面板 ═══ -->
+    <aside class="sidebar" id="sidebar">
+      <!-- 搜索 -->
+      <div class="sidebar-section">
+        <h4><span class="section-icon">🔍</span> 搜索节点</h4>
+        <div class="search-box-wrap">
+          <input class="search-box" id="search-input" placeholder="搜索记忆节点..." oninput="onSearch(this.value)">
+          <button class="search-clear" id="search-clear" onclick="clearSearch()">✕</button>
+        </div>
+        <div class="search-filter-row" id="search-filters">
+          <span class="search-filter-tag active" data-filter="all" onclick="setSearchFilter('all',this)">全部</span>
+          <span class="search-filter-tag" data-filter="hot" onclick="setSearchFilter('hot',this)">热记忆</span>
+          <span class="search-filter-tag" data-filter="warm" onclick="setSearchFilter('warm',this)">暖记忆</span>
+          <span class="search-filter-tag" data-filter="cold" onclick="setSearchFilter('cold',this)">冷记忆</span>
+          <span class="search-filter-tag" data-filter="skill" onclick="setSearchFilter('skill',this)">技能</span>
+        </div>
+        <div class="search-results" id="search-results"></div>
+      </div>
+
+      <!-- 图统计 -->
+      <div class="sidebar-section">
+        <h4><span class="section-icon">📊</span> 图统计</h4>
+        <div class="stats-grid">
+          <div class="stat-card cyan"><div class="stat-val" id="stat-nodes">0</div><div class="stat-lbl">节点数</div></div>
+          <div class="stat-card purple"><div class="stat-val" id="stat-edges">0</div><div class="stat-lbl">连线数</div></div>
+          <div class="stat-card green"><div class="stat-val" id="stat-clusters">0</div><div class="stat-lbl">聚类数</div></div>
+          <div class="stat-card yellow"><div class="stat-val" id="stat-pulsars">0</div><div class="stat-lbl">脉冲星</div></div>
+        </div>
+        <div style="margin-top:8px;font-size:10px;color:var(--text3);">
+          图密度: <span id="stat-density" style="color:var(--text);font-weight:600;">0.00</span> |
+          平均度: <span id="stat-avg-degree" style="color:var(--text);font-weight:600;">0.0</span>
+        </div>
+      </div>
+
+      <!-- 图例 -->
+      <div class="sidebar-section">
+        <h4><span class="section-icon">🎨</span> 图例</h4>
+        <div class="legend-grid">
+          <div class="legend-item"><span class="legend-dot" style="background:var(--hot);box-shadow:0 0 6px var(--hot);"></span> 热记忆 L0</div>
+          <div class="legend-item"><span class="legend-dot" style="background:var(--warm);box-shadow:0 0 6px var(--warm);"></span> 暖记忆 L1</div>
+          <div class="legend-item"><span class="legend-dot" style="background:var(--cold);box-shadow:0 0 6px var(--cold);"></span> 冷记忆 L2</div>
+          <div class="legend-item"><span class="legend-dot" style="background:var(--exec);box-shadow:0 0 6px var(--exec);"></span> 执行轨迹 L3</div>
+          <div class="legend-item"><span class="legend-dot" style="background:var(--skill);box-shadow:0 0 8px var(--skill);"></span> 技能固化 L4</div>
+          <div class="legend-item"><span class="legend-dot pulsar" style="background:var(--pulsar);"></span> 脉冲星核心</div>
+        </div>
+      </div>
+
+      <!-- 布局与物理 -->
+      <div class="sidebar-section">
+        <h4><span class="section-icon">⚙️</span> 布局与物理</h4>
+        <div class="control-row">
+          <select class="ctrl-select" id="layout-select" onchange="onLayoutChange(this.value)">
+            <option value="force">力导向布局</option>
+            <option value="spiral">时间螺旋</option>
+            <option value="radial">径向层级</option>
+            <option value="constellation">星座图</option>
+            <option value="grid">网格排列</option>
+          </select>
+        </div>
+        <div class="control-row">
+          <select class="ctrl-select" id="cluster-select" onchange="onClusterChange(this.value)">
+            <option value="hybrid">混合聚类</option>
+            <option value="topic">话题聚类</option>
+            <option value="tier">层级聚类</option>
+            <option value="time">时间聚类</option>
+            <option value="none">不聚类</option>
+          </select>
+        </div>
+        <div class="slider-row">
+          <label>引力</label>
+          <input type="range" id="gravity-slider" min="0" max="5" step="0.1" value="1" oninput="onPhysicsChange()">
+          <span class="slider-val" id="gravity-val">1.0</span>
+        </div>
+        <div class="slider-row">
+          <label>斥力</label>
+          <input type="range" id="repulsion-slider" min="0" max="5" step="0.1" value="2" oninput="onPhysicsChange()">
+          <span class="slider-val" id="repulsion-val">2.0</span>
+        </div>
+        <div class="slider-row">
+          <label>连线强度</label>
+          <input type="range" id="link-slider" min="0" max="2" step="0.05" value="0.5" oninput="onPhysicsChange()">
+          <span class="slider-val" id="link-val">0.5</span>
+        </div>
+        <div class="slider-row">
+          <label>阻尼</label>
+          <input type="range" id="damping-slider" min="0.5" max="0.99" step="0.01" value="0.9" oninput="onPhysicsChange()">
+          <span class="slider-val" id="damping-val">0.90</span>
+        </div>
+      </div>
+
+      <!-- 节点详情 -->
+      <div class="sidebar-section node-detail-section" id="node-detail-section">
+        <h4><span class="section-icon">📋</span> 节点详情</h4>
+        <div class="node-detail" id="node-detail-content"></div>
+        <div class="quick-actions" style="margin-top:6px;">
+          <button class="qa-btn" onclick="pinSelectedNode()">📌 固定</button>
+          <button class="qa-btn" onclick="expandSelectedNode()">🔍 展开邻居</button>
+          <button class="qa-btn danger" onclick="hideSelectedNode()">👁 隐藏</button>
+        </div>
+      </div>
+
+      <!-- 历史快照 -->
+      <div class="sidebar-section">
+        <h4><span class="section-icon">📸</span> 历史快照</h4>
+        <div class="snapshot-list" id="snapshot-list">
+          <div style="color:var(--text3);font-size:11px;text-align:center;padding:8px;">暂无快照</div>
+        </div>
+        <div class="quick-actions" style="margin-top:6px;">
+          <button class="qa-btn" onclick="takeSnapshot()">📸 保存快照</button>
+          <button class="qa-btn" onclick="exportGraphJSON()">📤 导出JSON</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ═══ 画布 ═══ -->
+    <div class="canvas-area" id="canvas-area">
+      <canvas id="graph-canvas"></canvas>
+      <div class="toolbar">
+        <button class="tool-btn" id="btn-zoom-in" title="放大" onclick="zoomIn()">+</button>
+        <button class="tool-btn" id="btn-zoom-out" title="缩小" onclick="zoomOut()">−</button>
+        <button class="tool-btn" id="btn-fit" title="适应屏幕" onclick="fitToScreen()">⊡</button>
+        <div class="tool-divider"></div>
+        <button class="tool-btn" id="btn-pause" title="暂停/恢复模拟" onclick="togglePause()">⏯</button>
+        <button class="tool-btn" id="btn-refresh" title="刷新数据" onclick="refreshGraph()">↻</button>
+        <div class="tool-divider"></div>
+        <button class="tool-btn" id="btn-screenshot" title="截图保存" onclick="screenshotCanvas()">📷</button>
+        <button class="tool-btn" id="btn-record" title="录制动画" onclick="toggleRecording()">⏺</button>
+      </div>
+      <div class="float-indicator">
+        <div class="fi-item">⚡ 脉冲星: <span class="fi-val" id="pulsar-count">0</span></div>
+        <div class="fi-item">🕐 周期: <span class="fi-val" id="pulsar-tick">0</span></div>
+        <div class="fi-item">📐 FPS: <span class="fi-val" id="fps-display">60</span></div>
+      </div>
+      <div class="minimap" id="minimap">
+        <canvas id="minimap-canvas"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="snapshot-toast" id="snapshot-toast" style="display:none;"></div>
+
+  <script>
+    // ═══════════════════════════════════════
+    // 记忆网络图 — 增强渲染引擎 v4.0
+    // ═══════════════════════════════════════
+
+    const canvas = document.getElementById('graph-canvas');
+    const ctx = canvas.getContext('2d');
+    const miniCanvas = document.getElementById('minimap-canvas');
+    const miniCtx = miniCanvas.getContext('2d');
+    let W, H;
+
+    // ── 状态 ──
+    let graphData = { nodes: [], edges: [], clusters: [], pulsars: [] };
+    let selectedNode = null;
+    let pinnedNodes = new Set();
+    let hiddenNodes = new Set();
+    let searchFilter = 'all';
+    let snapshots = [];
+
+    // 相机
+    let camera = { x: 0, y: 0, zoom: 1, targetX: 0, targetY: 0, targetZoom: 1 };
+    let isDragging = false, dragStart = { x: 0, y: 0 };
+    let paused = false, tick = 0;
+    let isRecording = false, recordingFrames = [];
+
+    // 节点位置
+    let positions = new Map();
+    let velocities = new Map();
+
+    // FPS
+    let fpsFrames = 0, fpsLastTime = performance.now(), fpsValue = 60;
+
+    function resize() {
+      const area = document.getElementById('canvas-area');
+      W = area.clientWidth; H = area.clientHeight;
+      canvas.width = W * devicePixelRatio;
+      canvas.height = H * devicePixelRatio;
+      canvas.style.width = W + 'px';
+      canvas.style.height = H + 'px';
+      ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+      // 迷你地图
+      miniCanvas.width = 140; miniCanvas.height = 100;
+    }
+
+    // ── 数据加载 ──
+    async function loadGraphData() {
+      try {
+        if (window.triCoreAPI) {
+          const data = await window.triCoreAPI.getMemoryGraphData();
+          if (data && data.nodes) { graphData = data; initPositions(); updateStats(); }
+        }
+      } catch (e) { generateDemoData(); }
+      if (graphData.nodes.length === 0) generateDemoData();
+    }
+
+    function generateDemoData() {
+      const tiers = [
+        { type:'hot', label:'热记忆', color:getComputedStyle(document.documentElement).getPropertyValue('--hot').trim()||'#ff503c', count:10, sr:[3,5] },
+        { type:'warm', label:'暖记忆', color:getComputedStyle(document.documentElement).getPropertyValue('--warm').trim()||'#ffa028', count:14, sr:[2,4] },
+        { type:'cold', label:'冷记忆', color:getComputedStyle(document.documentElement).getPropertyValue('--cold').trim()||'#5078c8', count:18, sr:[1,2.5] },
+        { type:'exec', label:'执行轨迹', color:getComputedStyle(document.documentElement).getPropertyValue('--exec').trim()||'#28d2a0', count:8, sr:[1,3] },
+        { type:'skill', label:'技能固化', color:getComputedStyle(document.documentElement).getPropertyValue('--skill').trim()||'#b43cff', count:6, sr:[3.5,5] },
+      ];
+      const nodes = [];
+      let ni = 0;
+      const hotContents = ['用户偏好：暗色主题开发','最近项目：TriCore架构优化','高频问题：LLM提供商配置','关键决策：采用插件化架构','用户习惯：偏好中文交互'];
+      const warmContents = ['上周完成：消息管道重构','记忆系统：向量检索优化','技能：代码审查模板','团队协作：子智能体通信协议'];
+      const coldContents = ['历史对话：2025Q4回顾','已废弃：旧版API接口','参考：OpenAI兼容规范','笔记：性能基准测试结果'];
+      for (const tier of tiers) {
+        for (let i = 0; i < tier.count; i++) {
+          const salience = tier.sr[0] + Math.random() * (tier.sr[1] - tier.sr[0]);
+          let content = '';
+          if (tier.type === 'hot') content = hotContents[i % hotContents.length];
+          else if (tier.type === 'warm') content = warmContents[i % warmContents.length];
+          else if (tier.type === 'cold') content = coldContents[i % coldContents.length];
+          else if (tier.type === 'exec') content = `执行任务 #${i+1}: 完成于 ${new Date(Date.now()-Math.random()*86400000).toLocaleDateString()}`;
+          else content = `技能模块 v${(Math.random()*3+1).toFixed(1)}: ${['数据分析','文本处理','代码生成','图像识别','搜索增强','安全审计'][i%6]}`;
+          nodes.push({
+            id: `${tier.type}_${i}`,
+            type: tier.type,
+            tier: tier.type==='hot'?0:tier.type==='warm'?1:tier.type==='cold'?2:tier.type==='exec'?3:4,
+            title: `${tier.label} #${i+1}`,
+            content: content,
+            salience: Math.round(salience*10)/10,
+            radius: 4 + salience*2.5,
+            color: tier.color,
+            glow: salience>=4,
+            isPulsar: tier.type==='skill' && salience>=4.2,
+            createdAt: Date.now() - Math.random()*86400000*30,
+            accessCount: Math.floor(Math.random()*100),
+          });
+        }
+      }
+      const edges = [];
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i+1; j < nodes.length; j++) {
+          if (Math.random() < 0.12) {
+            const types = ['semantic','temporal','causal','entangled'];
+            edges.push({
+              id: `e_${i}_${j}`, source: nodes[i].id, target: nodes[j].id,
+              type: types[Math.floor(Math.random()*types.length)],
+              strength: Math.random()*0.5+0.1, animated: Math.random()<0.15,
+            });
+          }
+        }
+      }
+      graphData = { nodes, edges, clusters: [], pulsars: nodes.filter(n=>n.isPulsar) };
+      initPositions(); updateStats();
+    }
+
+    function initPositions() {
+      positions.clear(); velocities.clear();
+      for (const node of graphData.nodes) {
+        positions.set(node.id, { x: node.x || (Math.random()*600-300), y: node.y || (Math.random()*400-200) });
+        velocities.set(node.id, { vx:0, vy:0 });
+      }
+    }
+
+    function updateStats() {
+      document.getElementById('stat-nodes').textContent = graphData.nodes.length;
+      document.getElementById('stat-edges').textContent = graphData.edges.length;
+      document.getElementById('stat-clusters').textContent = graphData.clusters.length;
+      document.getElementById('stat-pulsars').textContent = graphData.pulsars.length;
+      document.getElementById('pulsar-count').textContent = graphData.pulsars.length;
+      // 图密度
+      const n = graphData.nodes.length;
+      const maxEdges = n*(n-1)/2;
+      const density = maxEdges>0 ? (graphData.edges.length/maxEdges).toFixed(4) : '0.00';
+      document.getElementById('stat-density').textContent = density;
+      // 平均度
+      const avgDeg = n>0 ? (graphData.edges.length*2/n).toFixed(1) : '0.0';
+      document.getElementById('stat-avg-degree').textContent = avgDeg;
+    }
+
+    // ── 渲染 ──
+    function render() {
+      ctx.clearRect(0, 0, W, H);
+      ctx.save();
+      ctx.translate(W/2 + camera.x, H/2 + camera.y);
+      ctx.scale(camera.zoom, camera.zoom);
+
+      // 背景星场
+      ctx.fillStyle = 'rgba(136,136,187,0.03)';
+      for (let i = 0; i < 60; i++) {
+        const sx = ((i*7919)%2000)-1000, sy = ((i*6271)%1500)-750;
+        ctx.fillRect(sx, sy, 1.5, 1.5);
+      }
+
+      // 聚类区域
+      for (const cluster of (graphData.clusters||[])) {
+        if (cluster.nodeCount<2) continue;
+        ctx.fillStyle = 'rgba(42,42,90,0.06)';
+        ctx.strokeStyle = 'rgba(68,136,255,0.08)';
+        ctx.lineWidth = 1; ctx.setLineDash([4,6]);
+        const cx = cluster.centroid?.x || 0, cy = cluster.centroid?.y || 0;
+        ctx.beginPath(); ctx.ellipse(cx, cy, cluster.nodeCount*18+50, cluster.nodeCount*14+35, 0, 0, Math.PI*2);
+        ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(136,136,187,0.4)'; ctx.font = '9px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(cluster.label||'', cx, cy - cluster.nodeCount*14 - 40);
+      }
+
+      // 连线
+      const visibleNodes = new Set(graphData.nodes.filter(n=>!hiddenNodes.has(n.id)).map(n=>n.id));
+      for (const edge of graphData.edges) {
+        if (!visibleNodes.has(edge.source) || !visibleNodes.has(edge.target)) continue;
+        const sp = positions.get(edge.source), tp = positions.get(edge.target);
+        if (!sp || !tp) continue;
+        const isHL = selectedNode && (edge.source===selectedNode || edge.target===selectedNode);
+        const alpha = selectedNode ? (isHL?0.7:0.05) : 0.12;
+        ctx.beginPath(); ctx.moveTo(sp.x, sp.y); ctx.lineTo(tp.x, tp.y);
+        if (edge.type==='entangled') {
+          const grad = ctx.createLinearGradient(sp.x, sp.y, tp.x, tp.y);
+          grad.addColorStop(0, `rgba(170,102,255,${alpha})`);
+          grad.addColorStop(1, `rgba(68,221,255,${alpha})`);
+          ctx.strokeStyle = grad;
+        } else if (edge.animated) {
+          ctx.strokeStyle = `hsla(${tick%360}, 70%, 60%, ${alpha})`;
+        } else {
+          ctx.strokeStyle = `rgba(100,140,255,${alpha})`;
+        }
+        ctx.lineWidth = edge.strength*3*(isHL?2:1);
+        if (edge.type==='entangled') { ctx.setLineDash([4,4]); ctx.lineDashOffset = -tick*0.5; }
+        ctx.stroke(); ctx.setLineDash([]);
+
+        // 连线方向箭头
+        if (isHL && camera.zoom>0.6) {
+          const mx=(sp.x+tp.x)/2, my=(sp.y+tp.y)/2;
+          const angle=Math.atan2(tp.y-sp.y, tp.x-sp.x);
+          ctx.fillStyle=ctx.strokeStyle;
+          ctx.beginPath();
+          ctx.moveTo(mx, my);
+          ctx.lineTo(mx-6*Math.cos(angle-Math.PI/6), my-6*Math.sin(angle-Math.PI/6));
+          ctx.lineTo(mx-6*Math.cos(angle+Math.PI/6), my-6*Math.sin(angle+Math.PI/6));
+          ctx.fill();
+        }
+      }
+
+      // 脉冲星波纹
+      for (const pulsar of graphData.pulsars) {
+        if (hiddenNodes.has(pulsar.id)) continue;
+        const pos = positions.get(pulsar.id); if (!pos) continue;
+        for (let r=1; r<=3; r++) {
+          const radius = 20 + r*18 + Math.sin(tick*0.04 + r)*8;
+          ctx.beginPath(); ctx.arc(pos.x, pos.y, radius, 0, Math.PI*2);
+          ctx.strokeStyle = `rgba(255,200,50,${0.08 + Math.sin(tick*0.04+r)*0.04})`;
+          ctx.lineWidth = 0.8; ctx.stroke();
+        }
+      }
+
+      // 节点
+      for (const node of graphData.nodes) {
+        if (hiddenNodes.has(node.id)) continue;
+        const pos = positions.get(node.id); if (!pos) continue;
+        const isHL = !selectedNode || selectedNode===node.id;
+        const alpha = isHL?1:0.25;
+
+        // 黑洞光晕
+        if (node.salience>=4.0) {
+          const grad = ctx.createRadialGradient(pos.x, pos.y, node.radius, pos.x, pos.y, node.radius*3.5);
+          grad.addColorStop(0, `rgba(68,221,238,0.15)`);
+          grad.addColorStop(1, `rgba(68,221,238,0)`);
+          ctx.fillStyle = grad; ctx.beginPath();
+          ctx.arc(pos.x, pos.y, node.radius*3.5, 0, Math.PI*2); ctx.fill();
+        }
+
+        // 固定节点标记
+        if (pinnedNodes.has(node.id)) {
+          ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(pos.x, pos.y, node.radius+4, 0, Math.PI*2); ctx.stroke();
+        }
+
+        // 光晕
+        if (node.glow) { ctx.shadowColor = node.color; ctx.shadowBlur = 16; }
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = node.color;
+        ctx.beginPath(); ctx.arc(pos.x, pos.y, node.radius, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // 选中高亮
+        if (selectedNode===node.id) {
+          ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5;
+          ctx.beginPath(); ctx.arc(pos.x, pos.y, node.radius+3, 0, Math.PI*2); ctx.stroke();
+          // 选中脉冲环
+          const selR = node.radius+6+Math.sin(tick*0.08)*3;
+          ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.arc(pos.x, pos.y, selR, 0, Math.PI*2); ctx.stroke();
+        }
+
+        // 脉冲星标记
+        if (node.isPulsar) {
+          ctx.fillStyle = '#ffcc00';
+          ctx.beginPath(); ctx.arc(pos.x, pos.y, node.radius*0.4, 0, Math.PI*2); ctx.fill();
+        }
+
+        // 标签（缩放足够时显示）
+        if (camera.zoom>0.5 && (graphData.nodes.length<40 || isHL)) {
+          ctx.fillStyle = 'rgba(224,224,255,0.9)';
+          ctx.font = `${Math.max(9, node.radius*0.7)}px sans-serif`;
+          ctx.textAlign = 'center';
+          const lbl = node.title?.length>12 ? node.title.substring(0,11)+'…' : (node.title||'');
+          ctx.fillText(lbl, pos.x, pos.y - node.radius - 8);
+        }
+        ctx.globalAlpha = 1;
+      }
+      ctx.restore();
+
+      // 渲染迷你地图
+      renderMinimap();
+    }
+
+    function renderMinimap() {
+      const mw=140, mh=100;
+      miniCtx.clearRect(0,0,mw,mh);
+      miniCtx.fillStyle='rgba(10,10,26,0.9)'; miniCtx.fillRect(0,0,mw,mh);
+      const scaleX=mw/(W/camera.zoom), scaleY=mh/(H/camera.zoom);
+      const offX=mw/2 - camera.x*scaleX, offY=mh/2 - camera.y*scaleY;
+      for (const node of graphData.nodes) {
+        if (hiddenNodes.has(node.id)) continue;
+        const pos=positions.get(node.id); if(!pos) continue;
+        const mx=pos.x*scaleX+offX, my=pos.y*scaleY+offY;
+        if(mx<0||mx>mw||my<0||my>mh) continue;
+        miniCtx.fillStyle=node.color; miniCtx.beginPath(); miniCtx.arc(mx,my,1.5,0,Math.PI*2); miniCtx.fill();
+      }
+      // 视口框
+      miniCtx.strokeStyle='rgba(68,221,255,0.5)'; miniCtx.lineWidth=1;
+      miniCtx.strokeRect(offX, offY, W*scaleX/camera.zoom, H*scaleY/camera.zoom);
+    }
+
+    // ── 力导向模拟 ──
+    function simulate() {
+      if (paused) return;
+      const gravity = parseFloat(document.getElementById('gravity-slider').value);
+      const repulsion = parseFloat(document.getElementById('repulsion-slider').value);
+      const linkStrength = parseFloat(document.getElementById('link-slider').value);
+      const damping = parseFloat(document.getElementById('damping-slider').value);
+      const dt = 0.3;
+      const visibleNodes = graphData.nodes.filter(n=>!hiddenNodes.has(n.id));
+
+      // 斥力
+      for (let i=0; i<visibleNodes.length; i++) {
+        for (let j=i+1; j<visibleNodes.length; j++) {
+          const a=positions.get(visibleNodes[i].id), b=positions.get(visibleNodes[j].id);
+          if(!a||!b) continue;
+          let dx=a.x-b.x, dy=a.y-b.y;
+          const dist=Math.max(1, Math.sqrt(dx*dx+dy*dy));
+          const force=repulsion*500/(dist*dist);
+          const fx=(dx/dist)*force*dt, fy=(dy/dist)*force*dt;
+          if(!pinnedNodes.has(visibleNodes[i].id)){a.x+=fx;a.y+=fy;}
+          if(!pinnedNodes.has(visibleNodes[j].id)){b.x-=fx;b.y-=fy;}
+        }
+      }
+
+      // 连线引力
+      const visibleSet=new Set(visibleNodes.map(n=>n.id));
+      for (const edge of graphData.edges) {
+        if(!visibleSet.has(edge.source)||!visibleSet.has(edge.target)) continue;
+        const sp=positions.get(edge.source), tp=positions.get(edge.target);
+        if(!sp||!tp) continue;
+        let dx=tp.x-sp.x, dy=tp.y-sp.y;
+        const dist=Math.max(1, Math.sqrt(dx*dx+dy*dy));
+        const force=linkStrength*dist*0.01;
+        const fx=(dx/dist)*force*dt, fy=(dy/dist)*force*dt;
+        if(!pinnedNodes.has(edge.source)){sp.x+=fx;sp.y+=fy;}
+        if(!pinnedNodes.has(edge.target)){tp.x-=fx;tp.y-=fy;}
+      }
+
+      // 中心引力
+      for (const node of visibleNodes) {
+        if(pinnedNodes.has(node.id)) continue;
+        const pos=positions.get(node.id); if(!pos) continue;
+        const dist=Math.sqrt(pos.x*pos.x+pos.y*pos.y);
+        if(dist>1){pos.x-=(pos.x/dist)*gravity*0.5*dt; pos.y-=(pos.y/dist)*gravity*0.5*dt;}
+      }
+
+      // 阻尼
+      for (const node of visibleNodes) {
+        const vel=velocities.get(node.id); if(!vel) continue;
+        vel.vx*=damping; vel.vy*=damping;
+      }
+
+      tick++;
+      document.getElementById('pulsar-tick').textContent = tick;
+    }
+
+    // ── FPS ──
+    function updateFPS() {
+      fpsFrames++;
+      const now=performance.now();
+      if(now-fpsLastTime>=1000){fpsValue=Math.round(fpsFrames/((now-fpsLastTime)/1000));fpsFrames=0;fpsLastTime=now;}
+      document.getElementById('fps-display').textContent=fpsValue;
+    }
+
+    // ── 相机 ──
+    function zoomIn(){camera.targetZoom=Math.min(3,camera.targetZoom+0.2);}
+    function zoomOut(){camera.targetZoom=Math.max(0.2,camera.targetZoom-0.2);}
+    function fitToScreen(){camera.targetZoom=1;camera.targetX=0;camera.targetY=0;}
+    function togglePause(){paused=!paused;document.getElementById('btn-pause').classList.toggle('active',paused);}
+    async function refreshGraph(){document.getElementById('graph-status').textContent='● 刷新中...';await loadGraphData();document.getElementById('graph-status').textContent='● 就绪';}
+
+    // ── 截图 ──
+    function screenshotCanvas() {
+      const link=document.createElement('a');
+      link.download=`memory-graph-${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.png`;
+      link.href=canvas.toDataURL('image/png');
+      link.click();
+      showToast('📷 截图已保存');
+    }
+
+    // ── 录制 ──
+    function toggleRecording() {
+      isRecording=!isRecording;
+      const btn=document.getElementById('btn-record');
+      btn.classList.toggle('recording',isRecording);
+      btn.textContent=isRecording?'⏹':'⏺';
+      if(!isRecording&&recordingFrames.length>0){
+        // 简单GIF提示（实际可集成gif.js）
+        showToast(`⏺ 录制完成: ${recordingFrames.length} 帧`);
+        recordingFrames=[];
+      }
+    }
+
+    // ── Toast ──
+    function showToast(msg) {
+      const t=document.getElementById('snapshot-toast');
+      t.textContent=msg; t.style.display='block';
+      t.style.animation='none'; t.offsetHeight;
+      t.style.animation='toastIn 0.3s ease-out, toastOut 0.3s 2.5s ease-in forwards';
+      setTimeout(()=>{t.style.display='none';},2800);
+    }
+
+    // ── 鼠标交互 ──
+    canvas.addEventListener('mousedown',(e)=>{
+      if(e.button===0){
+        const mx=(e.offsetX-W/2-camera.x)/camera.zoom;
+        const my=(e.offsetY-H/2-camera.y)/camera.zoom;
+        let found=null, minDist=Infinity;
+        for(const node of graphData.nodes){
+          if(hiddenNodes.has(node.id)) continue;
+          const pos=positions.get(node.id); if(!pos) continue;
+          const dx=mx-pos.x, dy=my-pos.y;
+          const dist=Math.sqrt(dx*dx+dy*dy);
+          if(dist<node.radius+6 && dist<minDist){found=node.id;minDist=dist;}
+        }
+        if(found){selectedNode=found;showNodeDetail(found);}
+        else{selectedNode=null;hideNodeDetail();isDragging=true;dragStart={x:e.offsetX-camera.x,y:e.offsetY-camera.y};}
+      }
+    });
+    canvas.addEventListener('mousemove',(e)=>{
+      if(isDragging){camera.targetX=e.offsetX-dragStart.x;camera.targetY=e.offsetY-dragStart.y;}
+      // 悬停检测
+      const mx=(e.offsetX-W/2-camera.x)/camera.zoom;
+      const my=(e.offsetY-H/2-camera.y)/camera.zoom;
+      let hovering=false;
+      for(const node of graphData.nodes){
+        if(hiddenNodes.has(node.id)) continue;
+        const pos=positions.get(node.id); if(!pos) continue;
+        if(Math.sqrt((mx-pos.x)**2+(my-pos.y)**2)<node.radius+4){hovering=true;canvas.style.cursor='pointer';break;}
+      }
+      if(!hovering&&!isDragging) canvas.style.cursor=isDragging?'grabbing':'grab';
+    });
+    canvas.addEventListener('mouseup',()=>{isDragging=false;canvas.style.cursor='grab';});
+    canvas.addEventListener('wheel',(e)=>{
+      e.preventDefault();
+      camera.targetZoom=Math.max(0.2,Math.min(3,camera.targetZoom-e.deltaY*0.0008));
+    });
+    canvas.style.cursor='grab';
+
+    // 触摸支持
+    let touchDist0=0;
+    canvas.addEventListener('touchstart',(e)=>{
+      if(e.touches.length===2){touchDist0=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);}
+    },{passive:true});
+    canvas.addEventListener('touchmove',(e)=>{
+      if(e.touches.length===2){
+        const dist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+        camera.targetZoom=Math.max(0.2,Math.min(3,camera.targetZoom*(dist/touchDist0)));
+        touchDist0=dist;
+      }
+    },{passive:true});
+
+    // ── 节点详情 ──
+    function showNodeDetail(nodeId) {
+      const node=graphData.nodes.find(n=>n.id===nodeId); if(!node) return;
+      const connections=graphData.edges.filter(e=>e.source===nodeId||e.target===nodeId);
+      const tierLabels=['热记忆 L0','暖记忆 L1','冷记忆 L2','执行轨迹 L3','技能固化 L4'];
+      document.getElementById('node-detail-section').style.display='block';
+      document.getElementById('node-detail-content').innerHTML=`
+        <div class="nd-title"><span class="nd-color-dot" style="background:${node.color};box-shadow:0 0 8px ${node.color};"></span>${node.title}</div>
+        <div class="nd-meta-row">
+          <span class="nd-tag tier${node.tier}">${tierLabels[node.tier]||'未知层级'}</span>
+          <span style="font-size:11px;color:var(--text2);">Salience: <strong style="color:var(--text);">${node.salience.toFixed(1)}</strong></span>
+          ${node.isPulsar?'<span style="font-size:10px;color:var(--pulsar);">⚡ 脉冲星</span>':''}
+          <span style="font-size:10px;color:var(--text3);">访问 ${node.accessCount||0} 次</span>
+        </div>
+        <div class="nd-content">${(node.content||'无内容').substring(0,150)}</div>
+        <div class="nd-connections">
+          <div class="nd-conn-title">🔗 关联节点 (${connections.length})</div>
+          <div class="nd-conn-tags">
+            ${connections.slice(0,15).map(e=>{
+              const other=e.source===nodeId?e.target:e.source;
+              const otherNode=graphData.nodes.find(n=>n.id===other);
+              return `<span class="nd-conn-tag" onclick="selectAndFocus('${other}')" title="${otherNode?.title||other}">
+                <span style="color:${otherNode?.color||'#888'}';">●</span> ${otherNode?.title||other.substring(0,12)}
+                <span style="font-size:9px;color:var(--text3);">${e.type}</span>
+              </span>`;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+    function hideNodeDetail(){document.getElementById('node-detail-section').style.display='none';}
+
+    // ── 节点操作 ──
+    function pinSelectedNode(){if(selectedNode){pinnedNodes.add(selectedNode);showToast('📌 节点已固定');}}
+    function expandSelectedNode(){
+      if(!selectedNode) return;
+      const conns=graphData.edges.filter(e=>e.source===selectedNode||e.target===selectedNode);
+      const neighborIds=new Set(conns.map(e=>e.source===selectedNode?e.target:e.source));
+      // 高亮所有邻居
+      for(const nid of neighborIds){const pos=positions.get(nid);if(pos)pos.highlighted=true;}
+      showToast(`🔍 展开 ${neighborIds.size} 个邻居节点`);
+      setTimeout(()=>{for(const p of positions.values())p.highlighted=false;},3000);
+    }
+    function hideSelectedNode(){if(selectedNode){hiddenNodes.add(selectedNode);selectedNode=null;hideNodeDetail();showToast('👁 节点已隐藏');}}
+
+    // ── 搜索 ──
+    let searchFilter='all';
+    function setSearchFilter(filter,el){
+      searchFilter=filter;
+      document.querySelectorAll('.search-filter-tag').forEach(t=>t.classList.remove('active'));
+      if(el)el.classList.add('active');
+      onSearch(document.getElementById('search-input').value);
+    }
+    function clearSearch(){
+      document.getElementById('search-input').value='';
+      document.getElementById('search-results').innerHTML='';
+      document.getElementById('search-clear').style.display='none';
+    }
+    function onSearch(query) {
+      const clearBtn=document.getElementById('search-clear');
+      clearBtn.style.display=query?'block':'none';
+      if(!query||query.length<1){document.getElementById('search-results').innerHTML='';return;}
+      const q=query.toLowerCase();
+      let results=graphData.nodes.filter(n=>
+        (n.title||'').toLowerCase().includes(q)||(n.content||'').toLowerCase().includes(q)
+      );
+      if(searchFilter!=='all'){
+        const typeMap={hot:'hot',warm:'warm',cold:'cold',skill:'skill'};
+        results=results.filter(n=>n.type===typeMap[searchFilter]);
+      }
+      results=results.slice(0,15);
+      const container=document.getElementById('search-results');
+      container.innerHTML=results.length>0?results.map(n=>`
+        <div class="search-result-item" onclick="selectAndFocus('${n.id}')">
+          <span class="node-dot" style="background:${n.color};${n.isPulsar?'box-shadow:0 0 6px '+n.color:''};"></span>
+          <span class="node-info">
+            <div class="node-title">${n.title}</div>
+            <div class="node-sub">${(n.content||'').substring(0,40)}</div>
+          </span>
+          <span class="node-score">${n.salience.toFixed(1)}</span>
+        </div>
+      `).join(''):'<div class="no-results">🔍 未找到匹配节点</div>';
+    }
+
+    function selectAndFocus(nodeId) {
+      selectedNode=nodeId; showNodeDetail(nodeId);
+      const pos=positions.get(nodeId);
+      if(pos){camera.targetX=-pos.x*camera.zoom;camera.targetY=-pos.y*camera.zoom;}
+    }
+
+    // ── 快照 ──
+    function takeSnapshot(){
+      const snap={
+        time:new Date().toLocaleString(),
+        nodes:graphData.nodes.length,
+        edges:graphData.edges.length,
+        camera:{...camera},
+        selectedNode:selectedNode,
+      };
+      snapshots.unshift(snap);
+      if(snapshots.length>20)snapshots.pop();
+      renderSnapshots();
+      showToast('📸 快照已保存');
+    }
+    function renderSnapshots(){
+      const list=document.getElementById('snapshot-list');
+      list.innerHTML=snapshots.length>0?snapshots.map((s,i)=>`
+        <div class="snapshot-item" onclick="restoreSnapshot(${i})">
+          <span>📸 快照 #${snapshots.length-i}</span>
+          <span class="snap-time">${s.time}</span>
+          <span style="font-size:10px;color:var(--text3);">${s.nodes}N/${s.edges}E</span>
+        </div>
+      `).join(''):'<div style="color:var(--text3);font-size:11px;text-align:center;padding:8px;">暂无快照</div>';
+    }
+    function restoreSnapshot(idx){
+      const snap=snapshots[idx]; if(!snap) return;
+      camera.targetX=snap.camera.targetX; camera.targetY=snap.camera.targetY;
+      camera.targetZoom=snap.camera.targetZoom;
+      if(snap.selectedNode){selectedNode=snap.selectedNode;showNodeDetail(snap.selectedNode);}
+      showToast(`📸 恢复快照 #${snapshots.length-idx}`);
+    }
+
+    // ── 导出JSON ──
+    function exportGraphJSON(){
+      const exportData={nodes:graphData.nodes.map(n=>({...n,x:positions.get(n.id)?.x,y:positions.get(n.id)?.y})),edges:graphData.edges,exportedAt:new Date().toISOString()};
+      const json=JSON.stringify(exportData,null,2);
+      const blob=new Blob([json],{type:'application/json'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');a.href=url;a.download=`memory-graph-${new Date().toISOString().slice(0,10)}.json`;a.click();
+      URL.revokeObjectURL(url);
+      showToast('📤 图数据已导出');
+    }
+
+    // ── 控制 ──
+    function onLayoutChange(mode){
+      if(window.triCoreAPI)window.triCoreAPI.setMemoryGraphLayout(mode);
+      // 重新排列位置
+      initPositions();
+      showToast(`📐 布局切换: ${mode}`);
+    }
+    function onClusterChange(mode){
+      if(window.triCoreAPI)window.triCoreAPI.setMemoryGraphClusterMode(mode);
+      showToast(`🔬 聚类模式: ${mode}`);
+    }
+    function onPhysicsChange(){
+      document.getElementById('gravity-val').textContent=document.getElementById('gravity-slider').value;
+      document.getElementById('repulsion-val').textContent=document.getElementById('repulsion-slider').value;
+      document.getElementById('link-val').textContent=document.getElementById('link-slider').value;
+      document.getElementById('damping-val').textContent=document.getElementById('damping-slider').value;
+      if(window.triCoreAPI)window.triCoreAPI.setMemoryGraphPhysics({
+        gravity:parseFloat(document.getElementById('gravity-slider').value),
+        repulsion:parseFloat(document.getElementById('repulsion-slider').value),
+        linkStrength:parseFloat(document.getElementById('link-slider').value),
+        damping:parseFloat(document.getElementById('damping-slider').value),
+      });
+    }
+
+    // ── 主循环 ──
+    function loop() {
+      resize();
+      camera.x+=(camera.targetX-camera.x)*0.1;
+      camera.y+=(camera.targetY-camera.y)*0.1;
+      camera.zoom+=(camera.targetZoom-camera.zoom)*0.1;
+      simulate();
+      render();
+      updateFPS();
+      if(isRecording) recordingFrames.push(canvas.toDataURL('image/webp',0.5));
+      requestAnimationFrame(loop);
+    }
+
+    // ── 初始化 ──
+    window.addEventListener('resize',resize);
+    loadGraphData().then(()=>{if(graphData.nodes.length===0)generateDemoData();});
+    resize(); loop();
+    setInterval(()=>{if(window.triCoreAPI)loadGraphData();},5000);
+
+    // 设置按钮
+    const btnSettings=document.getElementById('btn-settings');
+    if(btnSettings){btnSettings.addEventListener('click',()=>{if(window.TriCoreSettingsPanel)window.TriCoreSettingsPanel.toggle();});btnSettings.addEventListener('mouseenter',()=>{btnSettings.style.borderColor='#4488ff';btnSettings.style.color='#4488ff';});btnSettings.addEventListener('mouseleave',()=>{btnSettings.style.borderColor='var(--border)';btnSettings.style.color='var(--text2)';});}
+
+    // 键盘快捷键
+    document.addEventListener('keydown',(e)=>{
+      switch(e.key){
+        case 'f':case 'F':if(!e.ctrlKey&&!e.metaKey){e.preventDefault();fitToScreen();}break;
+        case ' ':e.preventDefault();togglePause();break;
+        case '+':case '=':if(e.ctrlKey||e.metaKey){e.preventDefault();zoomIn();}break;
+        case '-':if(e.ctrlKey||e.metaKey){e.preventDefault();zoomOut();}break;
+        case 'Escape':selectedNode=null;hideNodeDetail();break;
+        case 'r':case 'R':if(e.ctrlKey){e.preventDefault();refreshGraph();}break;
+      }
+    });
+  </script>
+  <script src="../shared/settings-manager.js"></script>
+  <script src="../shared/settings-panel.js"></script>
+  <link rel="stylesheet" href="../shared/settings-panel.css">
+  <link rel="stylesheet" href="../shared/onboarding-wizard.css">
+  <link rel="stylesheet" href="../shared/self-check-panel.css">
+  <script src="../shared/onboarding-wizard.js"></script>
+  <script src="../shared/self-check-panel.js"></script>
+</body>
+</html>

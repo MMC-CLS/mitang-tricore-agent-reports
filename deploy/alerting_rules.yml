@@ -1,0 +1,117 @@
+# ═══════════════════════════════════════════════════════════════
+# TriCore Agent — Prometheus Alerting Rules v1.0
+# ═══════════════════════════════════════════════════════════════
+
+groups:
+  - name: tricore_critical
+    rules:
+      # ── Event Loop Lag ──
+      - alert: HighEventLoopLag
+        expr: tricore_eventloop_lag_p99 > 100
+        for: 2m
+        labels:
+          severity: critical
+          component: runtime
+        annotations:
+          summary: "事件循环延迟过高 (P99 > 100ms)"
+          description: "事件循环 P99 延迟 {{ $value }}ms 超过 100ms 阈值，可能导致请求超时。请检查 CPU 使用和同步阻塞操作。"
+
+      # ── Memory Usage ──
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes / (256 * 1024 * 1024) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: runtime
+        annotations:
+          summary: "内存使用超过 80% (RSS)"
+          description: "当前 RSS {{ $value | humanize }}B，超过 256MB 的 80%。请检查内存泄漏或考虑增加资源限制。"
+
+      - alert: CriticalMemoryUsage
+        expr: process_resident_memory_bytes > 512 * 1024 * 1024
+        for: 1m
+        labels:
+          severity: critical
+          component: runtime
+        annotations:
+          summary: "内存使用超过 512MB 上限"
+          description: "RSS 已达 {{ $value | humanize }}B，系统可能即将 OOM。"
+
+      # ── API Error Rate ──
+      - alert: HighAPIErrorRate
+        expr: rate(tricore_http_errors_total[5m]) > 0.1
+        for: 1m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "API 错误率过高 (>10%)"
+          description: "过去5分钟 API 错误率 {{ $value | humanizePercentage }}，请检查日志和下游依赖。"
+
+      # ── TICK Processing ──
+      - alert: TickProcessingDegraded
+        expr: rate(tricore_tick_success_total[5m]) / rate(tricore_tick_total[5m]) < 0.9
+        for: 3m
+        labels:
+          severity: warning
+          component: consciousness
+        annotations:
+          summary: "TICK 处理成功率低于 90%"
+          description: "TICK 成功率仅 {{ $value | humanizePercentage }}，可能 LLM Provider 不可用或 Token 预算耗尽。"
+
+      # ── Service Down ──
+      - alert: ServiceDown
+        expr: up{job="tricore-agent"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: infra
+        annotations:
+          summary: "TriCore Agent 服务不可用"
+          description: "服务 {{ $labels.instance }} 已宕机超过 1 分钟。"
+
+  - name: tricore_warning
+    rules:
+      # ── Slow API ──
+      - alert: SlowAPIResponse
+        expr: histogram_quantile(0.95, rate(tricore_http_request_duration_seconds_bucket[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "API P95 响应时间 > 500ms"
+          description: "P95 响应时间 {{ $value }}s，超过 500ms SLO。请检查 LLM Provider 延迟和数据库性能。"
+
+      # ── LLM Token Usage ──
+      - alert: HighTokenUsage
+        expr: rate(tricore_llm_tokens_total[1h]) > 10000
+        for: 10m
+        labels:
+          severity: warning
+          component: llm
+        annotations:
+          summary: "LLM Token 消耗过高"
+          description: "过去1小时 Token 消耗率 {{ $value }}/s，可能超出预算。"
+
+      # ── Database ──
+      - alert: SlowDatabaseQuery
+        expr: tricore_db_query_duration_seconds > 1
+        for: 2m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "数据库查询超时 (>1s)"
+          description: "SQLite 查询耗时 {{ $value }}s，可能数据库锁定或需要优化索引。"
+
+      # ── WebSocket ──
+      - alert: WebSocketConnectionSurge
+        expr: tricore_ws_connections_active > 100
+        for: 5m
+        labels:
+          severity: warning
+          component: websocket
+        annotations:
+          summary: "WebSocket 连接数超过 100"
+          description: "当前活跃连接 {{ $value }}，请检查是否需要扩展或限流。"

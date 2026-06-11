@@ -1,0 +1,62 @@
+{
+  "llm": {
+    "provider": "deepseek",
+    "apiKey": "",
+    "model": "",
+    "fallbackChain": [
+      "deepseek",
+      "qwen",
+      "openai"
+    ]
+  },
+  "scheduler": {
+    "awakeningTicks": 10,
+    "maxConsciousnessTicksPerHour": 12,
+    "tickIntervalIdle": 300000,
+    "tickIntervalActive": 30000
+  },
+  "social": {
+    "discord": {
+      "botToken": ""
+    },
+    "wechat_clawbot": {
+      "accountId": "",
+      "botToken": "",
+      "baseUrl": ""
+    },
+    "wechat_official": {
+      "appId": "",
+      "appSecret": ""
+    },
+    "feishu": {
+      "appId": "",
+      "appSecret": ""
+    },
+    "wecom": {
+      "key": ""
+    }
+  },
+  "voice": {
+    "asrProvider": "local_whisper",
+    "ttsProvider": "doubao",
+    "whisperModel": "base"
+  },
+  "browser": {
+    "headless": true,
+    "defaultSearchEngine": "bing"
+  },
+  "ui": {
+    "theme": "dark",
+    "fontSize": 13,
+    "autoStart": false,
+    "minimizeToTray": true,
+    "showOnStartup": true
+  },
+  "api": {
+    "port": 3721,
+    "host": "127.0.0.1",
+    "allowLan": false,
+    "apiToken": ""
+  },
+  "test_key": "test_value"
+}

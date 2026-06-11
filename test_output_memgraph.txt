@@ -1,0 +1,254 @@
+TAP version 13
+# Subtest: MemoryNetworkGraph
+    # Subtest: 图构建
+        # Subtest: 应从分层记忆数据构建图
+        ok 1 - 应从分层记忆数据构建图
+          ---
+          duration_ms: 5.0441
+          ...
+        # Subtest: 应从扁平记忆列表构建图
+        ok 2 - 应从扁平记忆列表构建图
+          ---
+          duration_ms: 0.7074
+          ...
+        # Subtest: 应过滤低salience记忆
+        ok 3 - 应过滤低salience记忆
+          ---
+          duration_ms: 1.1929
+          ...
+        1..3
+    ok 1 - 图构建
+      ---
+      duration_ms: 7.6712
+      type: 'suite'
+      ...
+    # Subtest: 节点操作
+        # Subtest: 应正确添加节点
+        ok 1 - 应正确添加节点
+          ---
+          duration_ms: 0.4738
+          ...
+        # Subtest: 应更新salience
+        ok 2 - 应更新salience
+          ---
+          duration_ms: 0.6286
+          ...
+        1..2
+    ok 2 - 节点操作
+      ---
+      duration_ms: 1.231
+      type: 'suite'
+      ...
+    # Subtest: 查询接口
+        # Subtest: 应返回节点详情
+        ok 1 - 应返回节点详情
+          ---
+          duration_ms: 0.5548
+          ...
+        # Subtest: 应搜索节点
+        ok 2 - 应搜索节点
+          ---
+          duration_ms: 0.4756
+          ...
+        # Subtest: 应搜索内容
+        ok 3 - 应搜索内容
+          ---
+          duration_ms: 0.3619
+          ...
+        # Subtest: 应查找路径
+        ok 4 - 应查找路径
+          ---
+          duration_ms: 0.6627
+          ...
+        # Subtest: 不存在的节点路径应返回null
+        ok 5 - 不存在的节点路径应返回null
+          ---
+          duration_ms: 0.7409
+          ...
+        1..5
+    ok 3 - 查询接口
+      ---
+      duration_ms: 3.0652
+      type: 'suite'
+      ...
+    # Subtest: 聚类
+        # Subtest: 应执行混合聚类
+        ok 1 - 应执行混合聚类
+          ---
+          duration_ms: 0.5713
+          ...
+        # Subtest: 应包含层级聚类
+        ok 2 - 应包含层级聚类
+          ---
+          duration_ms: 0.3471
+          ...
+        # Subtest: 应包含话题聚类
+        not ok 3 - 应包含话题聚类
+          ---
+          duration_ms: 5.6044
+          location: 'c:\\Users\\Administrator\\CodeBuddy\\20260606171322\\temp_extract\\TriCoreAgent\\tests\\unit\\memory-network-graph.test.js:189:5'
+          failureType: 'testCodeFailure'
+          error: |-
+            The expression evaluated to a falsy value:
+            
+              assert.ok(topicCluster)
+            
+          code: 'ERR_ASSERTION'
+          name: 'AssertionError'
+          expected: true
+          operator: '=='
+          stack: |-
+            TestContext.<anonymous> (c:\Users\Administrator\CodeBuddy\20260606171322\temp_extract\TriCoreAgent\tests\unit\memory-network-graph.test.js:194:14)
+            Test.runInAsyncScope (node:async_hooks:211:14)
+            Test.run (node:internal/test_runner/test:934:25)
+            async Suite.processPendingSubtests (node:internal/test_runner/test:633:7)
+          ...
+        # Subtest: 应能切换聚类模式
+        ok 4 - 应能切换聚类模式
+          ---
+          duration_ms: 0.3849
+          ...
+        1..4
+    not ok 4 - 聚类
+      ---
+      duration_ms: 7.078
+      type: 'suite'
+      location: 'c:\\Users\\Administrator\\CodeBuddy\\20260606171322\\temp_extract\\TriCoreAgent\\tests\\unit\\memory-network-graph.test.js:159:3'
+      failureType: 'subtestsFailed'
+      error: '1 subtest failed'
+      code: 'ERR_TEST_FAILURE'
+      ...
+    # Subtest: 脉冲星效果
+        # Subtest: 高salience技能节点应被标记为脉冲星
+        ok 1 - 高salience技能节点应被标记为脉冲星
+          ---
+          duration_ms: 0.2823
+          ...
+        1..1
+    ok 5 - 脉冲星效果
+      ---
+      duration_ms: 0.3501
+      type: 'suite'
+      ...
+    # Subtest: 物理参数控制
+        # Subtest: 应正确设置物理参数
+        ok 1 - 应正确设置物理参数
+          ---
+          duration_ms: 0.2848
+          ...
+        # Subtest: 应限制参数范围
+        ok 2 - 应限制参数范围
+          ---
+          duration_ms: 0.1976
+          ...
+        1..2
+    ok 6 - 物理参数控制
+      ---
+      duration_ms: 0.5656
+      type: 'suite'
+      ...
+    # Subtest: 布局模式
+        # Subtest: 应支持切换布局模式
+        ok 1 - 应支持切换布局模式
+          ---
+          duration_ms: 0.2367
+          ...
+        # Subtest: 无效布局模式应被忽略
+        ok 2 - 无效布局模式应被忽略
+          ---
+          duration_ms: 0.1797
+          ...
+        1..2
+    ok 7 - 布局模式
+      ---
+      duration_ms: 0.4993
+      type: 'suite'
+      ...
+    # Subtest: 选择与高亮
+        # Subtest: 选择节点应高亮关联节点和边
+        ok 1 - 选择节点应高亮关联节点和边
+          ---
+          duration_ms: 0.5164
+          ...
+        # Subtest: 清除选择应清空高亮
+        ok 2 - 清除选择应清空高亮
+          ---
+          duration_ms: 0.8609
+          ...
+        1..2
+    ok 8 - 选择与高亮
+      ---
+      duration_ms: 1.4651
+      type: 'suite'
+      ...
+    # Subtest: 统计
+        # Subtest: 应返回正确的统计信息
+        not ok 1 - 应返回正确的统计信息
+          ---
+          duration_ms: 1.8366
+          location: 'c:\\Users\\Administrator\\CodeBuddy\\20260606171322\\temp_extract\\TriCoreAgent\\tests\\unit\\memory-network-graph.test.js:297:5'
+          failureType: 'testCodeFailure'
+          error: |-
+            The expression evaluated to a falsy value:
+            
+              assert.ok(stats.buildTime > 0)
+            
+          code: 'ERR_ASSERTION'
+          name: 'AssertionError'
+          expected: true
+          actual: false
+          operator: '=='
+          stack: |-
+            TestContext.<anonymous> (c:\Users\Administrator\CodeBuddy\20260606171322\temp_extract\TriCoreAgent\tests\unit\memory-network-graph.test.js:307:14)
+            Test.runInAsyncScope (node:async_hooks:211:14)
+            Test.run (node:internal/test_runner/test:934:25)
+            async Promise.all (index 0)
+            async Suite.run (node:internal/test_runner/test:1320:7)
+            async Suite.processPendingSubtests (node:internal/test_runner/test:633:7)
+          ...
+        1..1
+    not ok 9 - 统计
+      ---
+      duration_ms: 1.9022
+      type: 'suite'
+      location: 'c:\\Users\\Administrator\\CodeBuddy\\20260606171322\\temp_extract\\TriCoreAgent\\tests\\unit\\memory-network-graph.test.js:296:3'
+      failureType: 'subtestsFailed'
+      error: '1 subtest failed'
+      code: 'ERR_TEST_FAILURE'
+      ...
+    # Subtest: 事件系统
+        # Subtest: 应在构建图后触发事件
+        ok 1 - 应在构建图后触发事件
+          ---
+          duration_ms: 0.307
+          ...
+        # Subtest: 应触发物理参数变更事件
+        ok 2 - 应触发物理参数变更事件
+          ---
+          duration_ms: 0.1794
+          ...
+        1..2
+    ok 10 - 事件系统
+      ---
+      duration_ms: 0.603
+      type: 'suite'
+      ...
+    1..10
+not ok 1 - MemoryNetworkGraph
+  ---
+  duration_ms: 25.3989
+  type: 'suite'
+  location: 'c:\\Users\\Administrator\\CodeBuddy\\20260606171322\\temp_extract\\TriCoreAgent\\tests\\unit\\memory-network-graph.test.js:10:1'
+  failureType: 'subtestsFailed'
+  error: '2 subtests failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..1
+# tests 24
+# suites 11
+# pass 22
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 226.0122

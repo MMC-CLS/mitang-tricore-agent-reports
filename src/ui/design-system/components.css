@@ -1,0 +1,201 @@
+/* ═══════════════════════════════════════════════════════════
+   Tricore Design System — Components v1.0
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Buttons ── */
+.tricore-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--tricore-space-2);
+  padding: var(--tricore-space-2) var(--tricore-space-4);
+  font-family: var(--tricore-font-sans);
+  font-size: var(--tricore-font-size-sm);
+  font-weight: var(--tricore-font-weight-medium);
+  line-height: var(--tricore-line-height-normal);
+  border: 1px solid transparent;
+  border-radius: var(--tricore-radius-md);
+  cursor: pointer;
+  transition: all var(--tricore-transition-fast);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.tricore-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tricore-btn--primary {
+  background: var(--tricore-primary);
+  color: var(--tricore-text-inverse);
+}
+.tricore-btn--primary:hover:not(:disabled) {
+  background: var(--tricore-primary-hover);
+  box-shadow: var(--tricore-shadow-md);
+}
+
+.tricore-btn--secondary {
+  background: var(--tricore-bg);
+  color: var(--tricore-text-primary);
+  border-color: var(--tricore-border);
+}
+.tricore-btn--secondary:hover:not(:disabled) {
+  background: var(--tricore-bg-secondary);
+  border-color: var(--tricore-gray-400);
+}
+
+.tricore-btn--danger {
+  background: var(--tricore-danger);
+  color: var(--tricore-text-inverse);
+}
+.tricore-btn--danger:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.tricore-btn--ghost {
+  background: transparent;
+  color: var(--tricore-text-secondary);
+}
+.tricore-btn--ghost:hover:not(:disabled) {
+  background: var(--tricore-bg-secondary);
+  color: var(--tricore-text-primary);
+}
+
+.tricore-btn--sm { padding: var(--tricore-space-1) var(--tricore-space-3); font-size: var(--tricore-font-size-xs); }
+.tricore-btn--lg { padding: var(--tricore-space-3) var(--tricore-space-6); font-size: var(--tricore-font-size-md); }
+
+/* ── Cards ── */
+.tricore-card {
+  background: var(--tricore-surface);
+  border: 1px solid var(--tricore-border);
+  border-radius: var(--tricore-radius-lg);
+  box-shadow: var(--tricore-shadow-sm);
+  overflow: hidden;
+}
+
+.tricore-card__header {
+  padding: var(--tricore-space-4) var(--tricore-space-5);
+  border-bottom: 1px solid var(--tricore-border);
+  font-family: var(--tricore-font-sans);
+  font-size: var(--tricore-font-size-md);
+  font-weight: var(--tricore-font-weight-semibold);
+  color: var(--tricore-text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tricore-card__body {
+  padding: var(--tricore-space-5);
+}
+
+.tricore-card__footer {
+  padding: var(--tricore-space-3) var(--tricore-space-5);
+  border-top: 1px solid var(--tricore-border);
+  background: var(--tricore-bg-secondary);
+}
+
+/* ── Badges ── */
+.tricore-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  font-family: var(--tricore-font-sans);
+  font-size: var(--tricore-font-size-xs);
+  font-weight: var(--tricore-font-weight-medium);
+  line-height: 1.5;
+  border-radius: var(--tricore-radius-full);
+  white-space: nowrap;
+}
+
+.tricore-badge--success { background: var(--tricore-success-light); color: var(--tricore-success); }
+.tricore-badge--warning { background: var(--tricore-warning-light); color: var(--tricore-warning); }
+.tricore-badge--danger  { background: var(--tricore-danger-light); color: var(--tricore-danger); }
+.tricore-badge--info    { background: var(--tricore-info-light); color: var(--tricore-info); }
+.tricore-badge--primary { background: var(--tricore-primary-light); color: var(--tricore-primary); }
+
+/* ── Status Dots ── */
+.tricore-status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--tricore-radius-full);
+  margin-right: var(--tricore-space-1);
+}
+
+.tricore-status-dot--online  { background: var(--tricore-success); }
+.tricore-status-dot--warning { background: var(--tricore-warning); }
+.tricore-status-dot--offline { background: var(--tricore-danger); }
+
+.tricore-status-dot--pulse {
+  animation: tricore-pulse 2s infinite;
+}
+
+@keyframes tricore-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ── Inputs ── */
+.tricore-input {
+  width: 100%;
+  padding: var(--tricore-space-2) var(--tricore-space-3);
+  font-family: var(--tricore-font-sans);
+  font-size: var(--tricore-font-size-sm);
+  line-height: var(--tricore-line-height-normal);
+  color: var(--tricore-text-primary);
+  background: var(--tricore-bg);
+  border: 1px solid var(--tricore-border);
+  border-radius: var(--tricore-radius-md);
+  transition: border-color var(--tricore-transition-fast), box-shadow var(--tricore-transition-fast);
+  outline: none;
+}
+
+.tricore-input:focus {
+  border-color: var(--tricore-border-focus);
+  box-shadow: 0 0 0 3px rgba(26, 86, 219, 0.15);
+}
+
+.tricore-input::placeholder {
+  color: var(--tricore-text-tertiary);
+}
+
+.tricore-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+/* ── Layout Utilities ── */
+.tricore-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--tricore-space-4); }
+.tricore-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--tricore-space-4); }
+.tricore-flex { display: flex; }
+.tricore-flex-center { display: flex; align-items: center; justify-content: center; }
+.tricore-flex-between { display: flex; align-items: center; justify-content: space-between; }
+.tricore-gap-1 { gap: var(--tricore-space-1); }
+.tricore-gap-2 { gap: var(--tricore-space-2); }
+.tricore-gap-3 { gap: var(--tricore-space-3); }
+.tricore-gap-4 { gap: var(--tricore-space-4); }
+
+/* ── Section ── */
+.tricore-section {
+  margin-bottom: var(--tricore-space-6);
+}
+
+.tricore-section__title {
+  font-family: var(--tricore-font-sans);
+  font-size: var(--tricore-font-size-lg);
+  font-weight: var(--tricore-font-weight-semibold);
+  color: var(--tricore-text-primary);
+  margin-bottom: var(--tricore-space-3);
+}
+
+/* ── Scrollbar ── */
+.tricore-scrollbar::-webkit-scrollbar { width: 6px; }
+.tricore-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.tricore-scrollbar::-webkit-scrollbar-thumb { background: var(--tricore-gray-300); border-radius: var(--tricore-radius-full); }
+.tricore-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--tricore-gray-400); }
+
+@media (max-width: 768px) {
+  .tricore-grid-2, .tricore-grid-3 { grid-template-columns: 1fr; }
+}

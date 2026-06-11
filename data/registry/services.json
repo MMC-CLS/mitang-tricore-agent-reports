@@ -1,0 +1,22 @@
+{
+  "tricore-agent": [
+    {
+      "id": "tricore-agent_127.0.0.1_3721_1780749206809",
+      "host": "127.0.0.1",
+      "port": 3721,
+      "status": "STARTING",
+      "metadata": {
+        "version": "2.5.0",
+        "codename": "TriCore"
+      },
+      "tags": [
+        "tricore",
+        "agent",
+        "v2.5.0"
+      ],
+      "weight": 1,
+      "registeredAt": 1780749206809,
+      "lastHeartbeat": 1780749206809
+    }
+  ]
+}

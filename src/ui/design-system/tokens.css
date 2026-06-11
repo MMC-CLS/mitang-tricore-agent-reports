@@ -1,0 +1,125 @@
+/* ═══════════════════════════════════════════════════════════
+   Tricore Design System — Design Tokens v1.0
+   蜜糖三核智能体 设计Token体系
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Color Palette ── */
+  --tricore-primary: #1a56db;
+  --tricore-primary-hover: #1e40af;
+  --tricore-primary-light: #dbeafe;
+  --tricore-secondary: #7c3aed;
+  --tricore-accent: #06b6d4;
+  --tricore-success: #16a34a;
+  --tricore-success-light: #dcfce7;
+  --tricore-warning: #ca8a04;
+  --tricore-warning-light: #fef9c3;
+  --tricore-danger: #dc2626;
+  --tricore-danger-light: #fee2e2;
+  --tricore-info: #2563eb;
+  --tricore-info-light: #dbeafe;
+
+  /* ── Neutrals ── */
+  --tricore-gray-50: #f9fafb;
+  --tricore-gray-100: #f3f4f6;
+  --tricore-gray-200: #e5e7eb;
+  --tricore-gray-300: #d1d5db;
+  --tricore-gray-400: #9ca3af;
+  --tricore-gray-500: #6b7280;
+  --tricore-gray-600: #4b5563;
+  --tricore-gray-700: #374151;
+  --tricore-gray-800: #1f2937;
+  --tricore-gray-900: #111827;
+
+  /* ── Surfaces ── */
+  --tricore-bg: #ffffff;
+  --tricore-bg-secondary: #f9fafb;
+  --tricore-bg-tertiary: #f3f4f6;
+  --tricore-surface: #ffffff;
+  --tricore-surface-raised: #ffffff;
+  --tricore-border: #e5e7eb;
+  --tricore-border-focus: #1a56db;
+
+  /* ── Text ── */
+  --tricore-text-primary: #111827;
+  --tricore-text-secondary: #4b5563;
+  --tricore-text-tertiary: #9ca3af;
+  --tricore-text-inverse: #ffffff;
+  --tricore-text-link: #1a56db;
+
+  /* ── Spacing (4px base) ── */
+  --tricore-space-1: 4px;
+  --tricore-space-2: 8px;
+  --tricore-space-3: 12px;
+  --tricore-space-4: 16px;
+  --tricore-space-5: 20px;
+  --tricore-space-6: 24px;
+  --tricore-space-8: 32px;
+  --tricore-space-10: 40px;
+  --tricore-space-12: 48px;
+
+  /* ── Typography ── */
+  --tricore-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', sans-serif;
+  --tricore-font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  --tricore-font-size-xs: 0.75rem;   /* 12px */
+  --tricore-font-size-sm: 0.8125rem; /* 13px */
+  --tricore-font-size-base: 0.875rem; /* 14px */
+  --tricore-font-size-md: 1rem;      /* 16px */
+  --tricore-font-size-lg: 1.125rem;  /* 18px */
+  --tricore-font-size-xl: 1.25rem;   /* 20px */
+  --tricore-font-size-2xl: 1.5rem;   /* 24px */
+  --tricore-font-size-3xl: 1.875rem; /* 30px */
+  --tricore-font-weight-normal: 400;
+  --tricore-font-weight-medium: 500;
+  --tricore-font-weight-semibold: 600;
+  --tricore-font-weight-bold: 700;
+  --tricore-line-height-tight: 1.25;
+  --tricore-line-height-normal: 1.5;
+  --tricore-line-height-relaxed: 1.75;
+
+  /* ── Border Radius ── */
+  --tricore-radius-sm: 4px;
+  --tricore-radius-md: 8px;
+  --tricore-radius-lg: 12px;
+  --tricore-radius-full: 9999px;
+
+  /* ── Shadows ── */
+  --tricore-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --tricore-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --tricore-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+
+  /* ── Transitions ── */
+  --tricore-transition-fast: 150ms ease;
+  --tricore-transition-normal: 250ms ease;
+  --tricore-transition-slow: 350ms ease-in-out;
+
+  /* ── Z-Index ── */
+  --tricore-z-dropdown: 100;
+  --tricore-z-sticky: 200;
+  --tricore-z-modal: 300;
+  --tricore-z-toast: 400;
+  --tricore-z-tooltip: 500;
+}
+
+/* ── Dark Theme ── */
+[data-theme="dark"] {
+  --tricore-bg: #0f172a;
+  --tricore-bg-secondary: #1e293b;
+  --tricore-bg-tertiary: #334155;
+  --tricore-surface: #1e293b;
+  --tricore-surface-raised: #334155;
+  --tricore-border: #334155;
+  --tricore-border-focus: #3b82f6;
+  --tricore-text-primary: #f1f5f9;
+  --tricore-text-secondary: #94a3b8;
+  --tricore-text-tertiary: #64748b;
+  --tricore-text-link: #60a5fa;
+  --tricore-primary-light: #1e3a5f;
+  --tricore-success-light: #14532d;
+  --tricore-warning-light: #422006;
+  --tricore-danger-light: #450a0a;
+  --tricore-info-light: #172554;
+  --tricore-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --tricore-shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+  --tricore-shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
+}

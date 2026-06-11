@@ -1,0 +1,28 @@
+{
+  "reporter": ["text", "lcov", "json-summary"],
+  "include": ["src/**/*.js"],
+  "exclude": [
+    "src/ui/**",
+    "src/config/config-manager.js",
+    "src/bootstrap/**",
+    "node_modules/**",
+    "tests/**"
+  ],
+  "excludeAfterRemap": false,
+  "all": true,
+  "check-coverage": true,
+  "branches": 50,
+  "lines": 60,
+  "functions": 50,
+  "statements": 60,
+  "watermarks": {
+    "lines": [60, 80],
+    "functions": [50, 75],
+    "branches": [50, 70],
+    "statements": [60, 80]
+  },
+  "tempDirectory": "./coverage/tmp",
+  "reportDir": "./coverage",
+  "skip-full": false,
+  "src": ["./src"]
+}

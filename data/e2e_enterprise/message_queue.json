@@ -1,0 +1,19 @@
+{
+  "timestamp": 1781021875766,
+  "version": "2.4.0",
+  "mainQueue": [],
+  "deadLetterQueue": [],
+  "stats": {
+    "enqueued": 0,
+    "dequeued": 0,
+    "completed": 0,
+    "failed": 0,
+    "deadLettered": 0,
+    "rejected": 0,
+    "expired": 0,
+    "retried": 0,
+    "persisted": 216,
+    "restored": 0,
+    "overflowDropped": 0
+  }
+}

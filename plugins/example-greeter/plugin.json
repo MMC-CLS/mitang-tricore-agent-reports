@@ -1,0 +1,41 @@
+{
+  "name": "example-greeter",
+  "version": "1.0.0",
+  "description": "An example plugin that greets users on startup and messages",
+  "author": "TriCore Team",
+  "license": "MIT",
+  "type": "middleware",
+  "main": "index.js",
+  "dependencies": [],
+  "permissions": [
+    "bus:subscribe",
+    "memory:read"
+  ],
+  "hooks": {
+    "onInit": {
+      "handler": "onInit",
+      "priority": 10
+    },
+    "onStart": {
+      "handler": "onStart",
+      "priority": 10
+    },
+    "onMessage": {
+      "handler": "onMessage",
+      "priority": 50
+    },
+    "onStop": {
+      "handler": "onStop",
+      "priority": 100
+    }
+  },
+  "config": {
+    "greeting": "Hello from Example Greeter Plugin!",
+    "farewell": "Example Greeter signing off. Goodbye!",
+    "logMessages": true
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "tricore": ">=1.0.0"
+  }
+}

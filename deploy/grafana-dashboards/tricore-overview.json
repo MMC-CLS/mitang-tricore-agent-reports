@@ -1,0 +1,127 @@
+{
+  "__inputs": [],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "version": "9.0.0" },
+    { "type": "prometheus", "id": "prometheus", "version": "1.0.0" }
+  ],
+  "annotations": { "list": [] },
+  "description": "TriCore Agent v1.0 — System Overview Dashboard",
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "title": "System Health",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 3 },
+      "targets": [{ "expr": "up{job=\"tricore-agent\"}", "refId": "A" }],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [{ "type": "value", "value": "1", "text": "UP" }, { "type": "value", "value": "0", "text": "DOWN" }],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 0 }] }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "API Request Rate",
+      "type": "graph",
+      "gridPos": { "x": 6, "y": 0, "w": 9, "h": 6 },
+      "targets": [
+        { "expr": "rate(tricore_http_requests_total[1m])", "legendFormat": "requests/s", "refId": "A" },
+        { "expr": "rate(tricore_http_errors_total[1m])", "legendFormat": "errors/s", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "lineInterpolation": "smooth" } } }
+    },
+    {
+      "id": 3,
+      "title": "API Latency (P50/P95/P99)",
+      "type": "graph",
+      "gridPos": { "x": 15, "y": 0, "w": 9, "h": 6 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, rate(tricore_http_request_duration_seconds_bucket[5m]))", "legendFormat": "P50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, rate(tricore_http_request_duration_seconds_bucket[5m]))", "legendFormat": "P95", "refId": "B" },
+        { "expr": "histogram_quantile(0.99, rate(tricore_http_request_duration_seconds_bucket[5m]))", "legendFormat": "P99", "refId": "C" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 4,
+      "title": "Three-Core Status",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 3, "w": 6, "h": 3 },
+      "targets": [
+        { "expr": "tricore_tick_total", "legendFormat": "TICKs", "refId": "A" },
+        { "expr": "tricore_tick_success_total", "legendFormat": "Success", "refId": "B" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Memory Usage (RSS)",
+      "type": "graph",
+      "gridPos": { "x": 6, "y": 6, "w": 9, "h": 5 },
+      "targets": [
+        { "expr": "process_resident_memory_bytes", "legendFormat": "RSS", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes" } }
+    },
+    {
+      "id": 6,
+      "title": "Event Loop Lag (P99)",
+      "type": "graph",
+      "gridPos": { "x": 15, "y": 6, "w": 9, "h": 5 },
+      "targets": [
+        { "expr": "tricore_eventloop_lag_p99", "legendFormat": "P99 Lag", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms" } },
+      "thresholds": [{ "value": 30, "color": "yellow" }, { "value": 100, "color": "red" }]
+    },
+    {
+      "id": 7,
+      "title": "LLM Token Usage (1h rate)",
+      "type": "graph",
+      "gridPos": { "x": 0, "y": 6, "w": 6, "h": 5 },
+      "targets": [
+        { "expr": "rate(tricore_llm_tokens_total[1h])", "legendFormat": "tokens/s", "refId": "A" }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "WebSocket Connections",
+      "type": "graph",
+      "gridPos": { "x": 6, "y": 11, "w": 9, "h": 5 },
+      "targets": [
+        { "expr": "tricore_ws_connections_active", "legendFormat": "Active", "refId": "A" }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "TICK Success Rate",
+      "type": "stat",
+      "gridPos": { "x": 15, "y": 11, "w": 9, "h": 5 },
+      "targets": [
+        { "expr": "rate(tricore_tick_success_total[5m]) / rate(tricore_tick_total[5m]) * 100", "legendFormat": "Success %", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 90 }, { "color": "red", "value": 95 }] }
+        }
+      }
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 36,
+  "style": "dark",
+  "tags": ["tricore", "agent", "ai"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "TriCore Agent — Overview",
+  "uid": "tricore-overview",
+  "version": 1
+}

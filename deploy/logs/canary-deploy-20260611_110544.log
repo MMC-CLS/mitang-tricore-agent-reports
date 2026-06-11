@@ -1,0 +1,47 @@
+[2026-06-11 11:05:44] [OK] Detected stable image: mitang-tricore-agent:1.0.0
+[2026-06-11 11:05:44] [INFO] Log file: /tmp/mitang_source/deploy/logs/canary-deploy-20260611_110544.log
+[2026-06-11 11:05:44] BANNER: TriCore Agent Canary Deployment
+[2026-06-11 11:05:44] [INFO] Mode:             compose
+[2026-06-11 11:05:44] [INFO] New Image:        mitang-tricore-agent:2.0.0
+[2026-06-11 11:05:44] [INFO] Stable Image:     mitang-tricore-agent:1.0.0
+[2026-06-11 11:05:44] [INFO] Error Threshold:  5.0%
+[2026-06-11 11:05:44] [INFO] Latency Threshold: 5000ms
+[2026-06-11 11:05:44] [INFO] Observation:       60s per stage
+[2026-06-11 11:05:44] [INFO] Health Timeout:    30s
+[2026-06-11 11:05:44] [INFO] Dry Run:           true
+[2026-06-11 11:05:44] [PHASE] Phase 1: Deploying canary instance
+[2026-06-11 11:05:44] [PHASE] Deploying canary instance (Docker Compose mode)
+[2026-06-11 11:05:44] [INFO] [DRY-RUN] Would run: docker run -d --name mitang-tricore-canary-20260611_110544 mitang-tricore-agent:2.0.0
+[2026-06-11 11:05:44] [PHASE] Phase 2: Verifying canary health
+[2026-06-11 11:05:44] [OK] Canary instance healthy: mitang-tricore-canary-20260611_110544
+[2026-06-11 11:05:44] [PHASE] Phase 3: Gradual traffic shifting (10 25 50 100%)
+[2026-06-11 11:05:44] [INFO] Shifting traffic to 10%...
+[2026-06-11 11:05:44] [PHASE] Shifting traffic to 10% canary (Docker Compose mode)
+[2026-06-11 11:05:44] [INFO] [DRY-RUN] Would shift 10% traffic to canary: mitang-tricore-canary-20260611_110544
+[2026-06-11 11:05:44] [PHASE] Observing canary for 30s (Docker Compose mode)
+[2026-06-11 11:05:44] [INFO] [DRY-RUN] Would observe canary for 30s
+[2026-06-11 11:05:44] [OK] Canary passed observation at 10% traffic
+[2026-06-11 11:05:45] [INFO] Shifting traffic to 25%...
+[2026-06-11 11:05:45] [PHASE] Shifting traffic to 25% canary (Docker Compose mode)
+[2026-06-11 11:05:45] [INFO] [DRY-RUN] Would shift 25% traffic to canary: mitang-tricore-canary-20260611_110544
+[2026-06-11 11:05:45] [PHASE] Observing canary for 30s (Docker Compose mode)
+[2026-06-11 11:05:45] [INFO] [DRY-RUN] Would observe canary for 30s
+[2026-06-11 11:05:45] [OK] Canary passed observation at 25% traffic
+[2026-06-11 11:05:45] [INFO] Shifting traffic to 50%...
+[2026-06-11 11:05:45] [PHASE] Shifting traffic to 50% canary (Docker Compose mode)
+[2026-06-11 11:05:45] [INFO] [DRY-RUN] Would shift 50% traffic to canary: mitang-tricore-canary-20260611_110544
+[2026-06-11 11:05:45] [PHASE] Observing canary for 60s (Docker Compose mode)
+[2026-06-11 11:05:45] [INFO] [DRY-RUN] Would observe canary for 60s
+[2026-06-11 11:05:45] [OK] Canary passed observation at 50% traffic
+[2026-06-11 11:05:45] [INFO] Shifting traffic to 100%...
+[2026-06-11 11:05:45] [PHASE] Shifting traffic to 100% canary (Docker Compose mode)
+[2026-06-11 11:05:45] [INFO] [DRY-RUN] Would shift 100% traffic to canary: mitang-tricore-canary-20260611_110544
+[2026-06-11 11:05:45] [PHASE] Observing canary for 60s (Docker Compose mode)
+[2026-06-11 11:05:45] [INFO] [DRY-RUN] Would observe canary for 60s
+[2026-06-11 11:05:45] [OK] Canary passed observation at 100% traffic
+[2026-06-11 11:05:45] [PHASE] Phase 4: Promoting canary to stable
+[2026-06-11 11:05:45] [PHASE] Promoting canary to stable (Docker Compose mode)
+[2026-06-11 11:05:45] [INFO] [DRY-RUN] Would replace stable instances with: mitang-tricore-agent:2.0.0
+[2026-06-11 11:05:45] BANNER: Canary Deployment Complete
+[2026-06-11 11:05:45] [OK] Successfully deployed: mitang-tricore-agent:2.0.0
+[2026-06-11 11:05:45] [OK] All traffic is now served by the new version

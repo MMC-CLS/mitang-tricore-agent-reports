@@ -1,0 +1,59 @@
+# docker-compose.demo.yml — 蜜糖 TriCore Agent 一键 Demo
+# 无需真实 LLM API Key，内置 Echo/Mock Provider
+#
+# 启动: docker-compose -f docker-compose.demo.yml up
+# 停止: docker-compose -f docker-compose.demo.yml down
+# 日志: docker-compose -f docker-compose.demo.yml logs -f
+
+version: '3.8'
+
+services:
+  # ── 蜜糖 TriCore Agent (Demo模式) ──
+  tricore-demo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mitang-tricore-agent:demo
+    container_name: tricore-demo
+    restart: "no"
+    ports:
+      - "3721:3721"      # API + WebSocket
+      - "3722:3722"      # 健康检查
+      - "8080:8080"      # Brain UI 静态服务
+    environment:
+      - NODE_ENV=demo
+      # Demo 模式：使用 echo mock provider，无需真实 API Key
+      - LLM_PROVIDER=echo
+      - LLM_API_KEY=demo-key-not-needed
+      - LLM_MODEL=echo-mock
+      # Demo 专用配置
+      - TRICORE_DEMO_MODE=true
+      - TRICORE_DATA_DIR=/app/data
+      - TRICORE_LOG_DIR=/app/data/logs
+      - TRICORE_ALLOW_LAN=1
+      - TRICORE_ADMIN_PASSWORD=demo
+      - TRICORE_WS_ENABLED=true
+      - TRICORE_SELFCHECK_ENABLED=false
+      - TRICORE_HOURLY_BUDGET=99999
+      - TRICORE_TICK_INTERVAL=5000
+      - TRICORE_AWAKENING_TICKS=5
+    volumes:
+      - tricore-demo-data:/app/data
+      - ./scripts/demo-entrypoint.sh:/app/demo-entrypoint.sh:ro
+    entrypoint: ["/bin/sh", "/app/demo-entrypoint.sh"]
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3722/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 8s
+    networks:
+      - tricore-demo-net
+
+volumes:
+  tricore-demo-data:
+    driver: local
+
+networks:
+  tricore-demo-net:
+    driver: bridge

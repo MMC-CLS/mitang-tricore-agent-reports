@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>对话 — 蜜糖 TriCore Agent</title>
+  <style>
+    :root {
+      --bg: #0a0a1a; --panel: #111128; --card: #16163a; --text: #e0e0ff;
+      --text2: #8888bb; --accent: #4488ff; --border: #2a2a5a; --radius: 8px;
+      --green: #44dd88; --user-bubble: #1a3a5c; --agent-bubble: #1a2a1a;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family: -apple-system, 'PingFang SC', sans-serif; background: var(--bg); color: var(--text); height: 100vh; display:flex; flex-direction:column; }
+    
+    .top-bar {
+      height: 48px; background: var(--panel); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 16px; justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .top-bar .logo { display:flex; align-items:center; gap:8px; font-size:15px; font-weight:600; }
+    .top-bar nav { display:flex; gap:4px; }
+    .top-bar nav a {
+      color: var(--text2); text-decoration: none; padding: 6px 14px; border-radius: 6px;
+      font-size: 13px; transition: all .2s;
+    }
+    .top-bar nav a:hover, .top-bar nav a.active { color: var(--text); background: var(--card); }
+
+    .main { display:flex; flex:1; overflow:hidden; }
+    
+    /* 对话区域 */
+    .chat-area {
+      flex:1; display:flex; flex-direction:column;
+    }
+    .messages {
+      flex:1; overflow-y:auto; padding: 20px; display:flex; flex-direction:column; gap:12px;
+    }
+    
+    .message {
+      display:flex; gap:10px; max-width: 80%; animation: fadeIn .3s ease;
+    }
+    .message.user { align-self:flex-end; flex-direction:row-reverse; }
+    .message.agent { align-self:flex-start; }
+    
+    .msg-avatar {
+      width:32px; height:32px; border-radius:50%; display:flex; align-items:center;
+      justify-content:center; font-size:16px; flex-shrink:0;
+    }
+    .message.user .msg-avatar { background: var(--accent); }
+    .message.agent .msg-avatar { background: var(--green); }
+    
+    .msg-bubble {
+      padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.5;
+    }
+    .message.user .msg-bubble { background: var(--user-bubble); border-bottom-right-radius: 4px; }
+    .message.agent .msg-bubble { background: var(--agent-bubble); border-bottom-left-radius: 4px; }
+    
+    .msg-meta { font-size:10px; color: var(--text2); margin-top:4px; }
+    
+    /* 量子态指示 */
+    .quantum-indicator {
+      display:inline-flex; align-items:center; gap:4px; font-size:10px;
+      padding:2px 8px; border-radius:10px; margin-left:8px;
+    }
+    .qi-superposed { background: rgba(68,136,255,0.15); color: #4488ff; }
+    .qi-entangled { background: rgba(170,102,255,0.15); color: #aa66ff; }
+    .qi-collapsed { background: rgba(68,221,136,0.15); color: #44dd88; }
+    
+    .typing-indicator {
+      display:flex; gap:4px; padding:8px 12px;
+    }
+    .typing-indicator span {
+      width:6px; height:6px; border-radius:50%; background: var(--text2);
+      animation: typing 1.4s infinite;
+    }
+    .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+    
+    @keyframes typing { 0%,60%,100% { transform:translateY(0); opacity:0.4; } 30% { transform:translateY(-6px); opacity:1; } }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+    
+    /* 输入区域 */
+    .input-area {
+      padding: 12px 20px; background: var(--panel); border-top: 1px solid var(--border);
+      display:flex; gap:10px;
+    }
+    .input-area input {
+      flex:1; padding: 10px 16px; background: var(--card); border: 1px solid var(--border);
+      border-radius: 20px; color: var(--text); font-size: 14px; outline: none;
+    }
+    .input-area input:focus { border-color: var(--accent); }
+    .input-area button {
+      width:40px; height:40px; border-radius:50%; border: none;
+      background: var(--accent); color: white; font-size:18px; cursor:pointer;
+      display:flex; align-items:center; justify-content:center; transition: all .2s;
+    }
+    .input-area button:hover { background: #5599ff; transform:scale(1.05); }
+    .input-area button:disabled { opacity:0.5; cursor:not-allowed; }
+    
+    /* 右侧面板 */
+    .side-panel {
+      width: 260px; background: var(--panel); border-left: 1px solid var(--border);
+      padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:12px;
+    }
+    .side-panel h4 { font-size:11px; color:var(--text2); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px; }
+    .context-card {
+      background: var(--card); border-radius: 6px; padding: 10px; font-size:12px;
+    }
+    .context-card .title { font-weight:600; margin-bottom:4px; }
+    .context-card .detail { color: var(--text2); font-size:11px; }
+    
+    .mode-toggle {
+      display:flex; background: var(--card); border-radius:8px; overflow:hidden;
+    }
+    .mode-toggle button {
+      flex:1; padding:8px; border:none; background:transparent; color:var(--text2);
+      cursor:pointer; font-size:12px; transition: all .2s;
+    }
+    .mode-toggle button.active { background: var(--accent); color:white; }
+  </style>
+</head>
+<body>
+  <header class="top-bar">
+    <div class="logo">
+      <span>💬</span>
+      <span>蜜糖 TriCore Agent — 对话</span>
+    </div>
+    <nav>
+      <a href="index.html">总览</a>
+      <a href="chat.html" class="active">对话</a>
+      <a href="memory-graph.html">记忆图谱</a>
+      <a href="pipeline.html">消息管道</a>
+      <a href="subagents.html">子智能体</a>
+    </nav>
+    <button class="btn-settings" id="btn-settings" title="系统设置 (Ctrl+,)" style="background:transparent;border:1px solid var(--border);color:var(--text2);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:16px;transition:all .2s;">⚙️</button>
+  </header>
+
+  <div class="main">
+    <div class="chat-area">
+      <div class="messages" id="messages">
+        <div class="message agent">
+          <div class="msg-avatar">🤖</div>
+          <div>
+            <div class="msg-bubble">你好！我是蜜糖 TriCore Agent。三核架构（意识+执行+进化）已就绪，有什么可以帮助你的？</div>
+            <div class="msg-meta">
+              <span class="quantum-indicator qi-collapsed">✦ 塌缩态</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="input-area">
+        <input type="text" id="chat-input" placeholder="输入消息... (Enter发送, Shift+Enter换行)" 
+               onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage();}">
+        <button id="btn-send" onclick="sendMessage()">➤</button>
+      </div>
+    </div>
+
+    <div class="side-panel">
+      <h4>🎯 意图识别</h4>
+      <div class="context-card" id="intent-card">
+        <div class="title">等待输入...</div>
+        <div class="detail">输入消息后将自动分析意图</div>
+      </div>
+
+      <h4>⚛️ 量子态追踪</h4>
+      <div class="context-card">
+        <div class="detail" id="quantum-tracker">就绪 — 等待消息流</div>
+      </div>
+
+      <h4>📊 情感向量</h4>
+      <div class="context-card" id="affect-card">
+        <div class="detail">等待消息分析...</div>
+      </div>
+
+      <h4>🎯 路由决策</h4>
+      <div class="context-card" id="route-card">
+        <div class="detail">自动路由到最优核心</div>
+      </div>
+
+      <h4>🔄 模式</h4>
+      <div class="mode-toggle">
+        <button class="active" onclick="setMode('chat',this)">💬 对话</button>
+        <button onclick="setMode('task',this)">⚡ 任务</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let messageCount = 0;
+    let chatMode = 'chat';
+
+    function addMessage(role, content, quantumState) {
+      const container = document.getElementById('messages');
+      const div = document.createElement('div');
+      div.className = `message ${role}`;
+      
+      const avatar = role === 'user' ? '👤' : '🤖';
+      const stateLabel = quantumState || (role === 'user' ? '叠加态' : '塌缩态');
+      const stateClass = role === 'user' ? 'qi-superposed' : 'qi-collapsed';
+      
+      div.innerHTML = `
+        <div class="msg-avatar">${avatar}</div>
+        <div>
+          <div class="msg-bubble">${escapeHtml(content)}</div>
+          <div class="msg-meta">
+            ${new Date().toLocaleTimeString()}
+            <span class="quantum-indicator ${stateClass}">✦ ${stateLabel}</span>
+          </div>
+        </div>
+      `;
+      
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function addTyping() {
+      const container = document.getElementById('messages');
+      const div = document.createElement('div');
+      div.className = 'message agent';
+      div.id = 'typing-indicator';
+      div.innerHTML = `
+        <div class="msg-avatar">🤖</div>
+        <div class="msg-bubble">
+          <div class="typing-indicator">
+            <span></span><span></span><span></span>
+          </div>
+        </div>
+      `;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function removeTyping() {
+      const el = document.getElementById('typing-indicator');
+      if (el) el.remove();
+    }
+
+    function sendMessage() {
+      const input = document.getElementById('chat-input');
+      const content = input.value.trim();
+      if (!content) return;
+      
+      input.value = '';
+      messageCount++;
+      
+      // 用户消息
+      addMessage('user', content, 'superposed');
+      
+      // 意图分析模拟
+      analyzeIntent(content);
+      
+      // 模拟Agent回复
+      addTyping();
+      const btn = document.getElementById('btn-send');
+      btn.disabled = true;
+      
+      setTimeout(() => {
+        removeTyping();
+        const response = generateResponse(content);
+        addMessage('agent', response, 'collapsed');
+        btn.disabled = false;
+      }, 800 + Math.random() * 1500);
+    }
+
+    function analyzeIntent(content) {
+      const lower = content.toLowerCase();
+      let intent = 'general', target = 'consciousness';
+      
+      if (/[?？什么怎么如何为什么]/i.test(content)) { intent = 'question'; target = 'consciousness'; }
+      else if (/执行|运行|启动|创建|删除|安装/i.test(content)) { intent = 'command'; target = 'execution'; }
+      else if (/分析|总结|报告|评估|对比/i.test(content)) { intent = 'analysis'; target = 'consciousness'; }
+      else if (/搜索|查找|查询/i.test(content)) { intent = 'search'; target = 'execution'; }
+      else if (/代码|编程|写一个|实现/i.test(content)) { intent = 'coding'; target = 'execution'; }
+      
+      document.getElementById('intent-card').innerHTML = `
+        <div class="title">意图: ${intent}</div>
+        <div class="detail">目标: ${target}</div>
+        <div class="detail">复杂度: ${content.length > 50 ? '高' : content.length > 20 ? '中' : '低'}</div>
+      `;
+      
+      document.getElementById('route-card').innerHTML = `
+        <div class="detail">路由到: <strong>${target === 'consciousness' ? '💡 意识核' : '⚡ 执行核'}</strong></div>
+        <div class="detail">参与核心: ${intent === 'analysis' ? '意识+进化' : target}</div>
+      `;
+      
+      // 量子态追踪
+      const isEntangled = messageCount > 1;
+      document.getElementById('quantum-tracker').innerHTML = `
+        当前消息: ${isEntangled ? '🔗 纠缠态 (与上下文关联)' : '✨ 叠加态 (独立消息)'}<br>
+        共 ${messageCount} 条消息 | 已塌缩: ${Math.max(0,messageCount-1)}
+      `;
+      
+      // 情感分析模拟
+      const positive = /好|棒|喜欢|开心|great|good|love/i.test(content);
+      const urgent = /紧急|快|立刻|马上|urgent/i.test(content);
+      document.getElementById('affect-card').innerHTML = `
+        <div class="detail">愉悦度: ${positive ? '⬆ 正面' : '➡ 中性'}</div>
+        <div class="detail">紧急度: ${urgent ? '⬆ 高' : '➡ 正常'}</div>
+        <div class="detail">置信度: ${Math.round(Math.min(100, content.length/5))}%</div>
+      `;
+    }
+
+    function generateResponse(content) {
+      const lower = content.toLowerCase();
+      if (/你好|hello|hi/i.test(lower)) return '你好！我是蜜糖 TriCore Agent，三核融合架构已就绪。意识核正在监控你的需求，执行核随时准备行动，进化核持续学习优化。';
+      if (/分析/i.test(lower)) return '已收到分析请求。意识核正在处理，执行核已准备相关工具，进化核将从中提取经验。请稍候...';
+      if (/帮助|help/i.test(lower)) return '我可以帮助你：\n• 💡 问题解答和知识查询\n• ⚡ 执行任务和自动化操作\n• 🧬 技能学习和自我进化\n• 🤝 创建子智能体并行处理\n• 🧠 记忆管理和知识图谱';
+      if (/代码|编程/i.test(lower)) return '已识别编程请求。执行核将启动代码生成工具，意识核负责语义理解，进化核会记录这次交互以优化未来的代码生成质量。';
+      if (/搜索|查找/i.test(lower)) return '搜索请求已接收。执行核将通过RAG引擎检索相关文档，并结合记忆引擎中的历史知识提供最佳答案。';
+      return `已收到你的消息："${content.substring(0, 30)}..."。三核系统正在协同处理：意识核分析语义、执行核准备响应、进化核记录模式。`;
+    }
+
+    function setMode(mode, btn) {
+      chatMode = mode;
+      document.querySelectorAll('.mode-toggle button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+
+    function escapeHtml(text) {
+      return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // 焦点输入框
+    document.getElementById('chat-input').focus();
+
+    // v5.0: 设置按钮
+    const btnSettings = document.getElementById('btn-settings');
+    if (btnSettings) {
+      btnSettings.addEventListener('click', () => {
+        if (window.TriCoreSettingsPanel) {
+          window.TriCoreSettingsPanel.toggle();
+        }
+      });
+      btnSettings.addEventListener('mouseenter', () => { btnSettings.style.borderColor = '#4488ff'; btnSettings.style.color = '#4488ff'; });
+      btnSettings.addEventListener('mouseleave', () => { btnSettings.style.borderColor = 'var(--border)'; btnSettings.style.color = 'var(--text2)'; });
+    }
+  </script>
+  <!-- v5.0: 共享设置模块 -->
+  <script src="../shared/settings-manager.js"></script>
+  <script src="../shared/settings-panel.js"></script>
+  <link rel="stylesheet" href="../shared/settings-panel.css">
+  <link rel="stylesheet" href="../shared/onboarding-wizard.css">
+  <link rel="stylesheet" href="../shared/self-check-panel.css">
+  <script src="../shared/onboarding-wizard.js"></script>
+  <script src="../shared/self-check-panel.js"></script>
+</body>
+</html>

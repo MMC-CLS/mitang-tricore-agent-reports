@@ -1,0 +1,4 @@
+[2026-06-11 11:06:01] [INFO] Checking prerequisites for compose mode...
+[2026-06-11 11:06:01] [OK] Docker and Docker Compose available
+[2026-06-11 11:06:01] [OK] Detected stable image: mitang-tricore-agent:1.0.0
+[2026-06-11 11:06:01] [INFO] Log file: /tmp/mitang_source/deploy/logs/canary-deploy-20260611_110601.log

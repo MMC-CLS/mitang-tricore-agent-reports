@@ -1,0 +1,82 @@
+{
+  "timestamp": 1781021875537,
+  "version": "2.4.0",
+  "mainQueue": [
+    {
+      "id": "msg_1781015365747_womk8fap",
+      "content": "你好，测试消息",
+      "from": "user1",
+      "channel": "api",
+      "priority": 1000,
+      "status": "pending",
+      "retryCount": 0,
+      "maxRetries": 3,
+      "ttl": 3600000,
+      "enqueuedAt": 1781015365748,
+      "expiresAt": 1781018965748,
+      "traceId": "trace_1781015365748_lf1h",
+      "metadata": {
+        "processorPipeline": {
+          "msgId": "msg_1781015365747_womk8fap",
+          "from": "user1",
+          "content": "你好，测试消息",
+          "channel": "api",
+          "meta": {
+            "urgent": false,
+            "parentMsgId": null,
+            "metadata": {}
+          },
+          "priority": 100,
+          "timestamp": 1781015365747,
+          "state": "routing",
+          "quantumState": "superposed",
+          "parentMsgId": null,
+          "analysis": {
+            "intent": "conversation",
+            "entities": [],
+            "affect": [
+              0.65,
+              0.5,
+              0.5,
+              0.5,
+              0.5,
+              0.014
+            ],
+            "complexity": {
+              "score": 0.35,
+              "level": "low",
+              "wordCount": 2,
+              "uniqueWordCount": 2
+            },
+            "language": "zh",
+            "timestamp": 1781015365748
+          },
+          "route": {
+            "target": "consciousness",
+            "cores": [
+              "consciousness"
+            ],
+            "priority": 100,
+            "preemptable": true
+          },
+          "response": null
+        }
+      },
+      "errorHistory": []
+    }
+  ],
+  "deadLetterQueue": [],
+  "stats": {
+    "enqueued": 1,
+    "dequeued": 0,
+    "completed": 0,
+    "failed": 0,
+    "deadLettered": 0,
+    "rejected": 0,
+    "expired": 0,
+    "retried": 0,
+    "persisted": 216,
+    "restored": 0,
+    "overflowDropped": 0
+  }
+}

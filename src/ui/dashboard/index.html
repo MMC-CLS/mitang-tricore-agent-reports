@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>蜜糖 TriCore Agent v4.0 - 管理仪表盘</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
+      background: #0f0f1a; color: #e0e0e0; min-height: 100vh;
+    }
+    .header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      padding: 20px 30px; border-bottom: 2px solid #0f3460;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .header h1 { font-size: 1.5em; color: #e94560; }
+    .header .version { font-size: 0.85em; color: #888; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; padding: 20px 30px; }
+    .card {
+      background: #1a1a2e; border-radius: 12px; padding: 20px;
+      border: 1px solid #2a2a4a; transition: border-color 0.3s;
+    }
+    .card:hover { border-color: #e94560; }
+    .card h3 { font-size: 1em; color: #aaa; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+    .stat-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #1f1f3a; }
+    .stat-row:last-child { border-bottom: none; }
+    .stat-label { color: #888; font-size: 0.9em; }
+    .stat-value { font-weight: 600; font-family: 'SF Mono', 'Cascadia Code', monospace; }
+    .stat-value.green { color: #00d2a0; }
+    .stat-value.red { color: #e94560; }
+    .stat-value.yellow { color: #f0c040; }
+    .stat-value.blue { color: #4da6ff; }
+    .status-dot {
+      display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+      margin-right: 6px;
+    }
+    .status-dot.green { background: #00d2a0; box-shadow: 0 0 8px #00d2a0; }
+    .status-dot.yellow { background: #f0c040; box-shadow: 0 0 8px #f0c040; }
+    .status-dot.red { background: #e94560; box-shadow: 0 0 8px #e94560; }
+    .progress-bar {
+      height: 6px; background: #2a2a4a; border-radius: 3px; margin-top: 4px; overflow: hidden;
+    }
+    .progress-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+    .progress-fill.green { background: linear-gradient(90deg, #00d2a0, #00e6b0); }
+    .progress-fill.blue { background: linear-gradient(90deg, #4da6ff, #66b3ff); }
+    .progress-fill.yellow { background: linear-gradient(90deg, #f0c040, #f5d060); }
+    .tabs { display: flex; gap: 4px; padding: 0 30px; margin-bottom: -10px; }
+    .tab {
+      padding: 8px 16px; background: #1a1a2e; border: 1px solid #2a2a4a; border-bottom: none;
+      border-radius: 8px 8px 0 0; cursor: pointer; color: #888; font-size: 0.9em;
+    }
+    .tab.active { background: #e94560; color: white; border-color: #e94560; }
+    .log-entry {
+      padding: 8px 12px; border-left: 3px solid #2a2a4a; margin: 4px 0;
+      font-family: 'SF Mono', monospace; font-size: 0.85em;
+    }
+    .log-entry.info { border-left-color: #4da6ff; }
+    .log-entry.warn { border-left-color: #f0c040; }
+    .log-entry.error { border-left-color: #e94560; }
+    .log-entry .time { color: #666; margin-right: 10px; }
+    .footer {
+      text-align: center; padding: 20px; color: #555; font-size: 0.85em;
+      border-top: 1px solid #1f1f3a; margin-top: 20px;
+    }
+    @media (max-width: 768px) {
+      .grid { grid-template-columns: 1fr; padding: 10px; }
+      .header { flex-direction: column; gap: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>🍯 蜜糖 TriCore Agent</h1>
+      <span class="version">v4.0.0 — 管理仪表盘</span>
+    </div>
+    <div style="text-align:right;display:flex;align-items:center;gap:16px;">
+      <button id="btn-settings" title="系统设置 (Ctrl+,)" style="background:transparent;border:1px solid #2a2a4a;color:#888;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:18px;transition:all .2s;">⚙️</button>
+      <div><span class="status-dot green" id="sys-dot"></span><span id="sys-status">运行中</span></div>
+      <div style="color:#888;font-size:0.85em;">运行时间: <span id="uptime">--</span></div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('overview')">概览</div>
+    <div class="tab" onclick="switchTab('cores')">三核状态</div>
+    <div class="tab" onclick="switchTab('memory')">记忆统计</div>
+    <div class="tab" onclick="switchTab('performance')">性能指标</div>
+    <div class="tab" onclick="switchTab('logs')">操作日志</div>
+  </div>
+
+  <div id="tab-overview" class="grid">
+    <div class="card">
+      <h3>📊 系统概览</h3>
+      <div class="stat-row"><span class="stat-label">版本</span><span class="stat-value blue">v4.0.0</span></div>
+      <div class="stat-row"><span class="stat-label">Node.js</span><span class="stat-value" id="node-version">--</span></div>
+      <div class="stat-row"><span class="stat-label">平台</span><span class="stat-value" id="platform">--</span></div>
+      <div class="stat-row"><span class="stat-label">内存使用</span><span class="stat-value" id="memory-usage">--</span></div>
+      <div class="stat-row"><span class="stat-label">CPU负载</span><span class="stat-value" id="cpu-load">--</span></div>
+    </div>
+    <div class="card">
+      <h3>🔄 自检状态</h3>
+      <div class="stat-row"><span class="stat-label">状态</span><span class="stat-value green" id="sc-status">--</span></div>
+      <div class="stat-row"><span class="stat-label">Phase 0</span><span class="stat-value" id="sc-phase0">--</span></div>
+      <div class="stat-row"><span class="stat-label">Phase 1</span><span class="stat-value" id="sc-phase1">--</span></div>
+      <div class="stat-row"><span class="stat-label">Phase 2</span><span class="stat-value" id="sc-phase2">--</span></div>
+      <div class="stat-row"><span class="stat-label">Phase 3</span><span class="stat-value" id="sc-phase3">--</span></div>
+    </div>
+    <div class="card">
+      <h3>💰 Token预算</h3>
+      <div class="stat-row"><span class="stat-label">小时预算</span><span class="stat-value blue" id="budget-hourly">--</span></div>
+      <div class="stat-row"><span class="stat-label">已使用</span><span class="stat-value" id="budget-used">--</span></div>
+      <div class="stat-row"><span class="stat-label">剩余</span><span class="stat-value green" id="budget-remaining">--</span></div>
+      <div class="progress-bar"><div class="progress-fill blue" id="budget-bar" style="width:0%"></div></div>
+    </div>
+    <div class="card">
+      <h3>🔒 安全统计</h3>
+      <div class="stat-row"><span class="stat-label">总检查</span><span class="stat-value" id="safety-total">--</span></div>
+      <div class="stat-row"><span class="stat-label">安全</span><span class="stat-value green" id="safety-safe">--</span></div>
+      <div class="stat-row"><span class="stat-label">警告</span><span class="stat-value yellow" id="safety-warned">--</span></div>
+      <div class="stat-row"><span class="stat-label">阻止</span><span class="stat-value red" id="safety-blocked">--</span></div>
+    </div>
+  </div>
+
+  <div id="tab-cores" class="grid" style="display:none;">
+    <div class="card">
+      <h3>🧠 意识核</h3>
+      <div class="stat-row"><span class="stat-label">模式</span><span class="stat-value blue" id="c-mode">--</span></div>
+      <div class="stat-row"><span class="stat-label">TICK数</span><span class="stat-value" id="c-ticks">--</span></div>
+      <div class="stat-row"><span class="stat-label">觉醒期</span><span class="stat-value" id="c-awakening">--</span></div>
+      <div class="stat-row"><span class="stat-label">焦点深度</span><span class="stat-value" id="c-focus">--</span></div>
+      <div class="stat-row"><span class="stat-label">思考层级</span><span class="stat-value" id="c-layer">--</span></div>
+    </div>
+    <div class="card">
+      <h3>⚙️ 执行核</h3>
+      <div class="stat-row"><span class="stat-label">任务总数</span><span class="stat-value" id="e-tasks">--</span></div>
+      <div class="stat-row"><span class="stat-label">已完成</span><span class="stat-value green" id="e-completed">--</span></div>
+      <div class="stat-row"><span class="stat-label">活跃</span><span class="stat-value blue" id="e-active">--</span></div>
+      <div class="stat-row"><span class="stat-label">失败</span><span class="stat-value red" id="e-failed">--</span></div>
+      <div class="stat-row"><span class="stat-label">注册工具</span><span class="stat-value" id="e-tools">--</span></div>
+    </div>
+    <div class="card">
+      <h3>🌱 进化核</h3>
+      <div class="stat-row"><span class="stat-label">技能数</span><span class="stat-value" id="v-skills">--</span></div>
+      <div class="stat-row"><span class="stat-label">已批准</span><span class="stat-value green" id="v-approved">--</span></div>
+      <div class="stat-row"><span class="stat-label">待审核</span><span class="stat-value yellow" id="v-pending">--</span></div>
+      <div class="stat-row"><span class="stat-label">整合时间</span><span class="stat-value" id="v-consolidation">--</span></div>
+      <div class="stat-row"><span class="stat-label">重试次数</span><span class="stat-value" id="v-retry">--</span></div>
+    </div>
+  </div>
+
+  <div id="tab-memory" class="grid" style="display:none;">
+    <div class="card">
+      <h3>📝 记忆分层</h3>
+      <div class="stat-row"><span class="stat-label">热记忆</span><span class="stat-value green" id="mem-hot">--</span></div>
+      <div class="stat-row"><span class="stat-label">温记忆</span><span class="stat-value blue" id="mem-warm">--</span></div>
+      <div class="stat-row"><span class="stat-label">冷记忆</span><span class="stat-value" id="mem-cold">--</span></div>
+      <div class="stat-row"><span class="stat-label">执行记忆</span><span class="stat-value yellow" id="mem-exec">--</span></div>
+      <div class="stat-row"><span class="stat-label">技能记忆</span><span class="stat-value" id="mem-skill">--</span></div>
+    </div>
+    <div class="card">
+      <h3>🗂️ 记忆网络图</h3>
+      <div class="stat-row"><span class="stat-label">节点数</span><span class="stat-value" id="graph-nodes">--</span></div>
+      <div class="stat-row"><span class="stat-label">边数</span><span class="stat-value" id="graph-edges">--</span></div>
+      <div class="stat-row"><span class="stat-label">集群数</span><span class="stat-value blue" id="graph-clusters">--</span></div>
+      <div class="stat-row"><span class="stat-label">最后更新</span><span class="stat-value" id="graph-updated">--</span></div>
+    </div>
+  </div>
+
+  <div id="tab-performance" class="grid" style="display:none;">
+    <div class="card">
+      <h3>⚡ TICK性能</h3>
+      <div class="stat-row"><span class="stat-label">平均延迟</span><span class="stat-value" id="perf-tick-latency">--</span></div>
+      <div class="stat-row"><span class="stat-label">P50延迟</span><span class="stat-value" id="perf-tick-p50">--</span></div>
+      <div class="stat-row"><span class="stat-label">P99延迟</span><span class="stat-value" id="perf-tick-p99">--</span></div>
+      <div class="stat-row"><span class="stat-label">TICK/s</span><span class="stat-value blue" id="perf-tick-rate">--</span></div>
+    </div>
+    <div class="card">
+      <h3>📨 消息处理</h3>
+      <div class="stat-row"><span class="stat-label">消息/s</span><span class="stat-value" id="perf-msg-rate">--</span></div>
+      <div class="stat-row"><span class="stat-label">队列长度</span><span class="stat-value" id="perf-queue-len">--</span></div>
+      <div class="stat-row"><span class="stat-label">死信数</span><span class="stat-value red" id="perf-dlq">--</span></div>
+      <div class="stat-row"><span class="stat-label">平均处理时间</span><span class="stat-value" id="perf-msg-time">--</span></div>
+    </div>
+    <div class="card">
+      <h3>🖥️ 系统资源</h3>
+      <div class="stat-row"><span class="stat-label">堆内存</span><span class="stat-value" id="sys-heap">--</span></div>
+      <div class="progress-bar"><div class="progress-fill yellow" id="sys-heap-bar" style="width:0%"></div></div>
+      <div class="stat-row"><span class="stat-label">事件循环延迟</span><span class="stat-value" id="sys-el-delay">--</span></div>
+      <div class="stat-row"><span class="stat-label">句柄数</span><span class="stat-value" id="sys-handles">--</span></div>
+    </div>
+  </div>
+
+  <div id="tab-logs" style="display:none; padding: 0 30px;">
+    <div class="card" style="max-height:500px; overflow-y:auto;" id="log-container">
+      <h3>📋 操作日志</h3>
+      <div id="log-entries">
+        <div class="log-entry info"><span class="time">--</span>仪表盘已加载</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    蜜糖 TriCore Agent v4.0.0 | MIT License | &copy; 2026
+  </div>
+
+  <script>
+    // ═══════════════════════════════════════
+    // 标签页切换
+    // ═══════════════════════════════════════
+    function switchTab(name) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelector(`[onclick="switchTab('${name}')"]`).classList.add('active');
+      ['overview','cores','memory','performance','logs'].forEach(id => {
+        document.getElementById('tab-' + id).style.display = id === name ? 'grid' : 'none';
+      });
+    }
+
+    // ═══════════════════════════════════════
+    // 数据刷新
+    // ═══════════════════════════════════════
+    async function refreshData() {
+      try {
+        const resp = await fetch('/api/status');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        updateDashboard(data);
+      } catch (e) {
+        console.warn('[Dashboard] Status fetch failed, using simulated data');
+        // 使用模拟数据
+        updateDashboard(getSimulatedData());
+      }
+    }
+
+    function getSimulatedData() {
+      const uptime = Math.floor((Date.now() - 1717600000000) / 1000);
+      return {
+        system: { version: '1.0.0', nodeVersion: process?.versions?.node || '20.0.0', platform: 'win32-x64', uptime },
+        memory: { heapUsed: 128 * 1024 * 1024, heapTotal: 512 * 1024 * 1024 },
+        cpu: { load: 0.35 },
+        selfCheck: { status: 'passed', phase0: 'passed', phase1: 'passed', phase2: 'passed', phase3: 'completed' },
+        budget: { hourly: 50000, used: 12000 },
+        safety: { total: 1500, safe: 1450, warned: 42, blocked: 8 },
+        consciousness: { mode: 'consciousness', ticks: 245, awakening: 0, focusDepth: 2, layer: 'L1' },
+        execution: { tasks: 87, completed: 80, active: 3, failed: 4, tools: 8 },
+        evolution: { skills: 42, approved: 35, pending: 7, lastConsolidation: Date.now() - 1800000, retryCount: 0 },
+        memoryData: { hot: 156, warm: 423, cold: 891, exec: 234, skill: 42 },
+        graph: { nodes: 1746, edges: 4523, clusters: 12, lastUpdated: Date.now() - 60000 },
+        performance: { tickLatency: 45, tickP50: 38, tickP99: 120, tickRate: 0.5, msgRate: 3.2, queueLen: 5, dlq: 0, msgTime: 120 },
+        systemResource: { heapUsed: 128, heapTotal: 512, elDelay: 1.2, handles: 4500 },
+      };
+    }
+
+    function updateDashboard(data) {
+      // 系统概览
+      setVal('node-version', data.system?.nodeVersion || '--');
+      setVal('platform', data.system?.platform || '--');
+      setVal('memory-usage', formatBytes(data.memory?.heapUsed) + ' / ' + formatBytes(data.memory?.heapTotal));
+      setVal('cpu-load', (data.cpu?.load * 100).toFixed(1) + '%');
+      setVal('uptime', formatUptime(data.system?.uptime || 0));
+
+      // 自检状态
+      setVal('sc-status', data.selfCheck?.status || '--');
+      setVal('sc-phase0', data.selfCheck?.phase0 || '--');
+      setVal('sc-phase1', data.selfCheck?.phase1 || '--');
+      setVal('sc-phase2', data.selfCheck?.phase2 || '--');
+      setVal('sc-phase3', data.selfCheck?.phase3 || '--');
+
+      // Token预算
+      const budget = data.budget || {};
+      setVal('budget-hourly', formatNumber(budget.hourly));
+      setVal('budget-used', formatNumber(budget.used));
+      setVal('budget-remaining', formatNumber((budget.hourly || 0) - (budget.used || 0)));
+      document.getElementById('budget-bar').style.width = ((budget.used || 0) / (budget.hourly || 1) * 100).toFixed(1) + '%';
+
+      // 安全
+      const safety = data.safety || {};
+      setVal('safety-total', safety.total);
+      setVal('safety-safe', safety.safe);
+      setVal('safety-warned', safety.warned);
+      setVal('safety-blocked', safety.blocked);
+
+      // 三核
+      const c = data.consciousness || {};
+      setVal('c-mode', c.mode);
+      setVal('c-ticks', c.ticks);
+      setVal('c-awakening', c.awakening);
+      setVal('c-focus', c.focusDepth);
+      setVal('c-layer', c.layer);
+
+      const e = data.execution || {};
+      setVal('e-tasks', e.tasks);
+      setVal('e-completed', e.completed);
+      setVal('e-active', e.active);
+      setVal('e-failed', e.failed);
+      setVal('e-tools', e.tools);
+
+      const v = data.evolution || {};
+      setVal('v-skills', v.skills);
+      setVal('v-approved', v.approved);
+      setVal('v-pending', v.pending);
+      setVal('v-consolidation', formatTimeAgo(v.lastConsolidation));
+      setVal('v-retry', v.retryCount || 0);
+
+      // 记忆
+      const mem = data.memoryData || {};
+      setVal('mem-hot', mem.hot);
+      setVal('mem-warm', mem.warm);
+      setVal('mem-cold', mem.cold);
+      setVal('mem-exec', mem.exec);
+      setVal('mem-skill', mem.skill);
+
+      const g = data.graph || {};
+      setVal('graph-nodes', g.nodes);
+      setVal('graph-edges', g.edges);
+      setVal('graph-clusters', g.clusters);
+      setVal('graph-updated', formatTimeAgo(g.lastUpdated));
+
+      // 性能
+      const p = data.performance || {};
+      setVal('perf-tick-latency', p.tickLatency + 'ms');
+      setVal('perf-tick-p50', p.tickP50 + 'ms');
+      setVal('perf-tick-p99', p.tickP99 + 'ms');
+      setVal('perf-tick-rate', p.tickRate + '/s');
+      setVal('perf-msg-rate', p.msgRate + '/s');
+      setVal('perf-queue-len', p.queueLen);
+      setVal('perf-dlq', p.dlq);
+      setVal('perf-msg-time', p.msgTime + 'ms');
+
+      const sr = data.systemResource || {};
+      setVal('sys-heap', formatBytes(sr.heapUsed * 1024 * 1024) + ' / ' + formatBytes(sr.heapTotal * 1024 * 1024));
+      document.getElementById('sys-heap-bar').style.width = ((sr.heapUsed || 0) / (sr.heapTotal || 1) * 100).toFixed(1) + '%';
+      setVal('sys-el-delay', sr.elDelay + 'ms');
+      setVal('sys-handles', sr.handles);
+    }
+
+    function setVal(id, val) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = val !== undefined && val !== null ? String(val) : '--';
+    }
+
+    function formatBytes(bytes) {
+      if (!bytes) return '0 B';
+      const units = ['B', 'KB', 'MB', 'GB'];
+      let i = 0;
+      while (bytes >= 1024 && i < units.length - 1) { bytes /= 1024; i++; }
+      return bytes.toFixed(1) + ' ' + units[i];
+    }
+
+    function formatNumber(n) {
+      if (!n) return '0';
+      return n >= 1000 ? (n / 1000).toFixed(1) + 'K' : String(n);
+    }
+
+    function formatUptime(seconds) {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      return h + 'h ' + m + 'm';
+    }
+
+    function formatTimeAgo(ts) {
+      if (!ts) return '--';
+      const diff = Date.now() - ts;
+      const m = Math.floor(diff / 60000);
+      if (m < 1) return '刚刚';
+      if (m < 60) return m + '分钟前';
+      const h = Math.floor(m / 60);
+      if (h < 24) return h + '小时前';
+      return Math.floor(h / 24) + '天前';
+    }
+
+    // 初始化
+    refreshData();
+    setInterval(refreshData, 5000);
+
+    // v5.0: 设置按钮
+    const btnSettings = document.getElementById('btn-settings');
+    if (btnSettings) {
+      btnSettings.addEventListener('click', () => {
+        if (window.TriCoreSettingsPanel) {
+          window.TriCoreSettingsPanel.toggle();
+        }
+      });
+      btnSettings.addEventListener('mouseenter', () => { btnSettings.style.borderColor = '#e94560'; btnSettings.style.color = '#e94560'; });
+      btnSettings.addEventListener('mouseleave', () => { btnSettings.style.borderColor = '#2a2a4a'; btnSettings.style.color = '#888'; });
+    }
+  </script>
+  <!-- v5.0: 共享设置模块 -->
+  <script src="../shared/settings-manager.js"></script>
+  <script src="../shared/settings-panel.js"></script>
+  <link rel="stylesheet" href="../shared/settings-panel.css">
+  <link rel="stylesheet" href="../shared/onboarding-wizard.css">
+  <link rel="stylesheet" href="../shared/self-check-panel.css">
+  <script src="../shared/onboarding-wizard.js"></script>
+  <script src="../shared/self-check-panel.js"></script>
+</body>
+</html>

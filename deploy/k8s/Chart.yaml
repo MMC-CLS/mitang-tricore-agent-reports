@@ -1,0 +1,31 @@
+apiVersion: v2
+name: tricore-agent
+version: 1.0.0
+appVersion: "1.0.0"
+description: |
+  蜜糖 TriCore Agent - 三核融合自主智能体 (MitangTriCore)
+  
+  三核架构：意识核(白龙马) + 执行核(龙虾) + 进化核(爱马仕)
+  治理层：CoreBus / SecurityBoundary / TokenBudget / ModelRouter
+  企业级特性：RBAC / 审计 / 加密 / 子智能体系统
+  
+  This Helm chart deploys the TriCore autonomous AI agent on Kubernetes
+  with configurable LLM providers, persistent SQLite storage, WebSocket
+  support, Prometheus metrics, and OpenTelemetry tracing.
+type: application
+keywords:
+  - ai
+  - agent
+  - tricore
+  - mitang
+  - llm
+  - autonomous
+  - kubernetes
+home: https://github.com/mitang-tricore-agent/mitang-tricore-agent
+sources:
+  - https://github.com/mitang-tricore-agent/mitang-tricore-agent
+maintainers:
+  - name: TriCore Agent Team
+    email: team@mitang-tricore-agent.dev
+engine: ">=1.21.0"
+dependencies: []

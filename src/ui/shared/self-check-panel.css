@@ -1,0 +1,456 @@
+/* ═══════════════════════════════════════
+   蜜糖 TriCore Agent — 系统自检面板样式 v1.0
+   ═══════════════════════════════════════ */
+
+/* ── 遮罩层 ── */
+.selfcheck-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: scFadeIn 0.3s ease;
+}
+
+.selfcheck-overlay.sc-closing {
+  animation: scFadeOut 0.25s ease forwards;
+}
+
+@keyframes scFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* ── 面板主体 ── */
+.selfcheck-panel {
+  width: 780px;
+  max-width: 95vw;
+  max-height: 88vh;
+  background: linear-gradient(160deg, #0d0d2b 0%, #111136 40%, #0a0a22 100%);
+  border: 1px solid rgba(68, 221, 136, 0.15);
+  border-radius: 18px;
+  box-shadow:
+    0 0 60px rgba(68, 221, 136, 0.08),
+    0 20px 50px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: scSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes scSlideIn {
+  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── 头部 ── */
+.sc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.sc-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sc-header-icon {
+  font-size: 28px;
+}
+
+.sc-header-left h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #e0e0ff;
+  margin: 0;
+}
+
+.sc-header-left p {
+  font-size: 12px;
+  color: #7777aa;
+  margin: 2px 0 0;
+}
+
+.sc-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sc-btn {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sc-btn-outline {
+  background: rgba(255, 255, 255, 0.05);
+  color: #aaaacc;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sc-btn-outline:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e0e0ff;
+}
+
+.sc-close-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  color: #8888bb;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.sc-close-btn:hover {
+  background: rgba(255, 68, 102, 0.15);
+  border-color: rgba(255, 68, 102, 0.3);
+  color: #ff4466;
+}
+
+/* ── 主体内容 ── */
+.sc-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+
+.sc-body::-webkit-scrollbar {
+  width: 5px;
+}
+
+.sc-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sc-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+}
+
+/* ── 总体统计 ── */
+.sc-overall {
+  margin-bottom: 20px;
+  padding: 16px 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+}
+
+.sc-overall-stats {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.sc-stat {
+  flex: 1;
+  text-align: center;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.sc-stat-value {
+  display: block;
+  font-size: 24px;
+  font-weight: 800;
+  color: #e0e0ff;
+}
+
+.sc-stat-label {
+  font-size: 11px;
+  color: #7777aa;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sc-stat-pass .sc-stat-value { color: #44dd88; }
+.sc-stat-warn .sc-stat-value { color: #ffcc44; }
+.sc-stat-fail .sc-stat-value { color: #ff4466; }
+
+.sc-progress-bar {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.sc-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4488ff, #44dd88);
+  border-radius: 3px;
+  transition: width 0.6s ease;
+}
+
+/* ── 分类面板 ── */
+.sc-categories {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sc-category {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.sc-category:hover {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.sc-cat-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+  user-select: none;
+}
+
+.sc-cat-header:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.sc-cat-icon {
+  font-size: 18px;
+  width: 28px;
+  text-align: center;
+}
+
+.sc-cat-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #ccccee;
+}
+
+.sc-cat-desc {
+  font-size: 12px;
+  color: #6666aa;
+  flex: 1;
+}
+
+.sc-cat-status {
+  flex-shrink: 0;
+}
+
+.sc-cat-badge {
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.sc-cat-badge.pass {
+  background: rgba(68, 221, 136, 0.1);
+  color: #44dd88;
+}
+
+.sc-cat-badge.warn {
+  background: rgba(255, 204, 68, 0.1);
+  color: #ffcc44;
+}
+
+.sc-cat-badge.fail {
+  background: rgba(255, 68, 102, 0.1);
+  color: #ff4466;
+}
+
+.sc-cat-toggle {
+  font-size: 12px;
+  color: #555580;
+  transition: transform 0.2s;
+  width: 20px;
+  text-align: center;
+}
+
+/* ── 分类内容 ── */
+.sc-cat-body {
+  display: none;
+  padding: 0 16px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  animation: scExpand 0.2s ease;
+}
+
+@keyframes scExpand {
+  from { opacity: 0; max-height: 0; }
+  to { opacity: 1; max-height: 500px; }
+}
+
+/* ── 检查项 ── */
+.sc-check-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.sc-check-item:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.sc-check-icon {
+  font-size: 14px;
+  width: 22px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.sc-check-name {
+  font-size: 13px;
+  color: #aaaacc;
+  flex: 1;
+}
+
+.sc-check-result {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ── 状态样式 ── */
+.sc-status-pending {
+  font-size: 11px;
+  color: #555580;
+}
+
+.sc-status-running {
+  font-size: 11px;
+  color: #4488ff;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sc-status-pass {
+  font-size: 11px;
+  color: #44dd88;
+  font-weight: 500;
+}
+
+.sc-status-warn {
+  font-size: 11px;
+  color: #ffcc44;
+  font-weight: 500;
+}
+
+.sc-status-fail {
+  font-size: 11px;
+  color: #ff4466;
+  font-weight: 500;
+}
+
+.sc-check-value {
+  font-size: 10px;
+  color: #6666aa;
+}
+
+/* ── 加载动画 ── */
+.sc-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(68, 136, 255, 0.2);
+  border-top-color: #4488ff;
+  border-radius: 50%;
+  animation: scSpin 0.8s linear infinite;
+}
+
+@keyframes scSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* ═══════════════════════════════════════
+   响应式适配
+   ═══════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  .selfcheck-panel {
+    width: 100vw;
+    max-width: 100vw;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .sc-header {
+    padding: 14px 16px;
+  }
+
+  .sc-header-left h2 {
+    font-size: 16px;
+  }
+
+  .sc-body {
+    padding: 14px;
+  }
+
+  .sc-overall-stats {
+    gap: 8px;
+  }
+
+  .sc-stat-value {
+    font-size: 20px;
+  }
+
+  .sc-cat-desc {
+    display: none;
+  }
+
+  .sc-cat-header {
+    padding: 10px 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .sc-header-actions {
+    gap: 4px;
+  }
+
+  .sc-btn {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  .sc-overall-stats {
+    flex-wrap: wrap;
+  }
+
+  .sc-stat {
+    flex: 1 1 40%;
+  }
+}

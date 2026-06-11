@@ -1,0 +1,220 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tricore-agent.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tricore-agent.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    {{- toYaml .Values.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "tricore-agent.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "tricore-agent.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "tricore-agent.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- else }}
+      terminationGracePeriodSeconds: 60
+      {{- end }}
+
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+
+          ports:
+            - name: http-api
+              containerPort: 3721
+              protocol: TCP
+            - name: http-health
+              containerPort: 3722
+              protocol: TCP
+            - name: ws
+              containerPort: 3723
+              protocol: TCP
+            - name: http-dashboard
+              containerPort: 3724
+              protocol: TCP
+
+          env:
+            # ── 非敏感环境变量 ──
+            {{- range $key, $value := .Values.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+
+            # ── ConfigMap 引用 ──
+            {{- range $key, $value := .Values.configMap }}
+            - name: {{ $key }}
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "tricore-agent.configMapName" $ }}
+                  key: {{ $key }}
+            {{- end }}
+
+            # ── Secret 引用 ──
+            {{- range .Values.envSecrets }}
+            - name: {{ .name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secretKeyRef.name }}
+                  key: {{ .secretKeyRef.key }}
+                  {{- if .secretKeyRef.optional }}
+                  optional: {{ .secretKeyRef.optional }}
+                  {{- end }}
+            {{- end }}
+
+            # ── 额外环境变量 ──
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+
+          {{- if .Values.healthChecks.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.healthChecks.liveness.path }}
+              port: {{ .Values.healthChecks.liveness.port }}
+              scheme: HTTP
+            initialDelaySeconds: {{ .Values.healthChecks.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthChecks.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.healthChecks.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.healthChecks.liveness.failureThreshold }}
+            successThreshold: {{ .Values.healthChecks.liveness.successThreshold }}
+          {{- end }}
+
+          {{- if .Values.healthChecks.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.healthChecks.readiness.path }}
+              port: {{ .Values.healthChecks.readiness.port }}
+              scheme: HTTP
+            initialDelaySeconds: {{ .Values.healthChecks.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthChecks.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.healthChecks.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.healthChecks.readiness.failureThreshold }}
+            successThreshold: {{ .Values.healthChecks.readiness.successThreshold }}
+          {{- end }}
+
+          {{- if .Values.healthChecks.startup.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.healthChecks.startup.path }}
+              port: {{ .Values.healthChecks.startup.port }}
+              scheme: HTTP
+            initialDelaySeconds: {{ .Values.healthChecks.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthChecks.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.healthChecks.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.healthChecks.startup.failureThreshold }}
+          {{- end }}
+
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+
+          volumeMounts:
+            # 持久化数据目录
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath | quote }}
+            # 临时文件目录（Playwright / 沙箱）
+            - name: tmp
+              mountPath: /tmp
+            # 日志目录（在持久化数据下）
+            - name: data
+              mountPath: /app/data/logs
+              subPath: logs
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+
+        {{- if .Values.otelSidecar.enabled }}
+        # ── OpenTelemetry Collector Sidecar ──
+        - name: otel-collector
+          image: "{{ .Values.otelSidecar.image.repository }}:{{ .Values.otelSidecar.image.tag }}"
+          imagePullPolicy: {{ .Values.otelSidecar.image.pullPolicy }}
+          args:
+            - --config=/etc/otel-collector/config.yml
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+              protocol: TCP
+            - name: otlp-http
+              containerPort: 4318
+              protocol: TCP
+            - name: prometheus
+              containerPort: 9464
+              protocol: TCP
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          volumeMounts:
+            - name: otel-config
+              mountPath: {{ .Values.otelSidecar.configMountPath }}
+              readOnly: true
+        {{- end }}
+
+      volumes:
+        # 持久化数据卷
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "tricore-agent.pvcName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        # 临时文件卷
+        - name: tmp
+          emptyDir:
+            sizeLimit: {{ .Values.tmpfsSize | quote }}
+        {{- if .Values.otelSidecar.enabled }}
+        # OTEL Collector 配置
+        - name: otel-config
+          configMap:
+            name: {{ include "tricore-agent.fullname" . }}-otel-config
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,82 @@
+# ═══════════════════════════════════════════════════════════════
+# TriCore Agent v1.0 — Service Level Objectives (SLO)
+# ═══════════════════════════════════════════════════════════════
+
+service: tricore-agent
+version: 1.0.0
+owner: gstack-engineering
+review_cycle: monthly
+
+# ── SLO Definitions ──
+slos:
+  - name: api_availability
+    description: "API 服务可用性"
+    target: 99.9%
+    window: 30d
+    measurement: 'avg(up{job="tricore-agent"}) * 100'
+    alert_threshold: 99.5%
+    critical_threshold: 99.0%
+    error_budget: "43m 49s / month"
+
+  - name: api_latency_p95
+    description: "API P95 响应延迟"
+    target: "< 500ms"
+    window: 7d
+    measurement: 'histogram_quantile(0.95, rate(tricore_http_request_duration_seconds_bucket[7d]))'
+    alert_threshold: "> 500ms"
+    critical_threshold: "> 1000ms"
+
+  - name: tick_success_rate
+    description: "TICK 处理成功率"
+    target: "> 95%"
+    window: 1h
+    measurement: 'rate(tricore_tick_success_total[1h]) / rate(tricore_tick_total[1h]) * 100'
+    alert_threshold: "< 90%"
+    critical_threshold: "< 80%"
+
+  - name: memory_usage
+    description: "内存使用 (RSS)"
+    target: "< 256MB"
+    window: 5m
+    measurement: 'process_resident_memory_bytes'
+    alert_threshold: "> 204MB (80%)"
+    critical_threshold: "> 512MB"
+
+  - name: event_loop_lag_p99
+    description: "事件循环延迟 P99"
+    target: "< 30ms"
+    window: 5m
+    measurement: 'tricore_eventloop_lag_p99'
+    alert_threshold: "> 30ms"
+    critical_threshold: "> 100ms"
+
+  - name: ws_connection_limit
+    description: "WebSocket 连接数上限"
+    target: "< 100"
+    window: 5m
+    measurement: 'tricore_ws_connections_active'
+    alert_threshold: "> 100"
+
+# ── Error Budget Policy ──
+error_budget_policy:
+  burn_rate_alerts:
+    - name: fast_burn
+      description: "2小时内消耗2%预算"
+      threshold: "2% error budget / 2h"
+      action: "立即告警，禁止部署新版本"
+    - name: slow_burn
+      description: "30天内消耗10%预算"
+      threshold: "10% error budget / 30d"
+      action: "告警，审查近期变更"
+
+# ── SLI Collection ──
+sli_collection:
+  prometheus_scrape_interval: 15s
+  evaluation_interval: 30s
+  recording_rules:
+    - name: "api:availability:ratio_5m"
+      expr: 'avg_over_time(up{job="tricore-agent"}[5m])'
+    - name: "api:latency:p95_5m"
+      expr: 'histogram_quantile(0.95, rate(tricore_http_request_duration_seconds_bucket[5m]))'
+    - name: "tick:success:ratio_5m"
+      expr: 'rate(tricore_tick_success_total[5m]) / rate(tricore_tick_total[5m])'

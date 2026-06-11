@@ -1,0 +1,92 @@
+{
+  "compilerOptions": {
+    // ── 渐进式迁移：allowJs + checkJs 模式 ──
+    // 允许 .js 文件与 .ts 文件共存
+    "allowJs": true,
+    // 对 .js 文件也进行类型检查
+    "checkJs": true,
+
+    // ── 类型声明 ──
+    // 从 types/ 目录加载自定义类型声明
+    "typeRoots": ["./types", "./node_modules/@types"],
+    // 默认包含的类型声明
+    "types": [],
+
+    // ── 目标与模块 ──
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "lib": ["ES2022"],
+
+    // ── 输出 ──
+    "outDir": "./dist",
+    "rootDir": ".",
+    "declaration": true,
+    "declarationDir": "./dist/types",
+    "emitDeclarationOnly": false,
+    "sourceMap": true,
+
+    // ── 严格模式（逐步启用） ──
+    "strict": false,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "strictFunctionTypes": false,
+    "strictBindCallApply": false,
+    "strictPropertyInitialization": false,
+    "noImplicitThis": false,
+    "alwaysStrict": true,
+
+    // ── 额外检查 ──
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": false,
+    "noFallthroughCasesInSwitch": true,
+
+    // ── 模块解析 ──
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "isolatedModules": false,
+
+    // ── 跳过 ──
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+
+    // ── 路径 ──
+    "baseUrl": ".",
+    "paths": {
+      "*": ["types/*"]
+    }
+  },
+
+  // ── 包含与排除 ──
+  "include": [
+    "src/**/*.js",
+    "src/**/*.ts",
+    "types/**/*.d.ts",
+    "plugins/**/*.js",
+    "plugins/**/*.json"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "data",
+    "tests",
+    "deploy",
+    "scripts",
+    "docs"
+  ],
+
+  // ── 注释 ──
+  "_tsMigrate": {
+    "currentPhase": "declarations",
+    "nextPhases": [
+      "Enable strictNullChecks",
+      "Enable noImplicitAny",
+      "Rename .js → .ts for core modules",
+      "Enable full strict mode",
+      "Remove allowJs"
+    ],
+    "notes": "渐进式迁移策略：先建立 .d.ts 声明文件，再逐步开启严格检查，最后重命名为 .ts。"
+  }
+}

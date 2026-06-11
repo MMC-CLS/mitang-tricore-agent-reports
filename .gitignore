@@ -1,0 +1,8 @@
+node_modules/
+data/*.db
+data/.jwt_secret
+.env
+*.tar.gz
+.DS_Store
+coverage/
+test_output/

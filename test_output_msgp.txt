@@ -1,0 +1,268 @@
+TAP version 13
+# Subtest: MessageProcessor
+    # Subtest: 消息接收
+        # Subtest: 应正确接收消息并返回msgId
+        ok 1 - 应正确接收消息并返回msgId
+          ---
+          duration_ms: 3.4736
+          ...
+        # Subtest: 应增加消息计数
+        ok 2 - 应增加消息计数
+          ---
+          duration_ms: 0.3738
+          ...
+        # Subtest: 应正确设置优先级
+        ok 3 - 应正确设置优先级
+          ---
+          duration_ms: 0.5056
+          ...
+        # Subtest: 系统消息应有较低优先级
+        ok 4 - 系统消息应有较低优先级
+          ---
+          duration_ms: 0.968
+          ...
+        1..4
+    ok 1 - 消息接收
+      ---
+      duration_ms: 6.0062
+      type: 'suite'
+      ...
+    # Subtest: 消息分析
+        # Subtest: 应正确检测问题意图
+        ok 1 - 应正确检测问题意图
+          ---
+          duration_ms: 0.9488
+          ...
+        # Subtest: 应正确检测命令意图
+        ok 2 - 应正确检测命令意图
+          ---
+          duration_ms: 0.3736
+          ...
+        # Subtest: 应提取URL实体
+        ok 3 - 应提取URL实体
+          ---
+          duration_ms: 0.2495
+          ...
+        # Subtest: 应分析复杂度
+        ok 4 - 应分析复杂度
+          ---
+          duration_ms: 0.3819
+          ...
+        # Subtest: 应检测中文语言
+        ok 5 - 应检测中文语言
+          ---
+          duration_ms: 0.366
+          ...
+        # Subtest: 应估计情感向量
+        ok 6 - 应估计情感向量
+          ---
+          duration_ms: 0.2804
+          ...
+        1..6
+    ok 2 - 消息分析
+      ---
+      duration_ms: 2.9473
+      type: 'suite'
+      ...
+    # Subtest: 消息路由
+        # Subtest: 问题应路由到意识核
+        ok 1 - 问题应路由到意识核
+          ---
+          duration_ms: 0.3525
+          ...
+        # Subtest: 命令应路由到执行核
+        ok 2 - 命令应路由到执行核
+          ---
+          duration_ms: 0.2617
+          ...
+        1..2
+    ok 3 - 消息路由
+      ---
+      duration_ms: 0.9072
+      type: 'suite'
+      ...
+    # Subtest: 消息完成
+        # Subtest: 应正确标记完成状态
+        ok 1 - 应正确标记完成状态
+          ---
+          duration_ms: 0.5068
+          ...
+        # Subtest: 应塌缩量子态
+        ok 2 - 应塌缩量子态
+          ---
+          duration_ms: 0.6979
+          ...
+        1..2
+    ok 4 - 消息完成
+      ---
+      duration_ms: 1.2865
+      type: 'suite'
+      ...
+    # Subtest: 消息中断
+        # Subtest: 应正确标记中断状态
+        ok 1 - 应正确标记中断状态
+          ---
+          duration_ms: 0.2708
+          ...
+        # Subtest: 应统计中断次数
+        ok 2 - 应统计中断次数
+          ---
+          duration_ms: 0.1908
+          ...
+        1..2
+    ok 5 - 消息中断
+      ---
+      duration_ms: 0.5396
+      type: 'suite'
+      ...
+    # Subtest: 量子态标记
+        # Subtest: 单条消息应为叠加态
+        ok 1 - 单条消息应为叠加态
+          ---
+          duration_ms: 0.1753
+          ...
+        # Subtest: 连续相关消息应标记为纠缠态
+        not ok 2 - 连续相关消息应标记为纠缠态
+          ---
+          duration_ms: 0.8641
+          location: 'c:\\Users\\Administrator\\CodeBuddy\\20260606171322\\temp_extract\\TriCoreAgent\\tests\\unit\\message-processor.test.js:187:5'
+          failureType: 'testCodeFailure'
+          error: |-
+            Expected values to be strictly equal:
+            + actual - expected
+            
+            + 'superposed'
+            - 'entangled'
+            
+          code: 'ERR_ASSERTION'
+          name: 'AssertionError'
+          expected: 'entangled'
+          actual: 'superposed'
+          operator: 'strictEqual'
+          stack: |-
+            TestContext.<anonymous> (c:\Users\Administrator\CodeBuddy\20260606171322\temp_extract\TriCoreAgent\tests\unit\message-processor.test.js:193:14)
+            Test.runInAsyncScope (node:async_hooks:211:14)
+            Test.run (node:internal/test_runner/test:934:25)
+            async Suite.processPendingSubtests (node:internal/test_runner/test:633:7)
+          ...
+        1..2
+    not ok 6 - 量子态标记
+      ---
+      duration_ms: 1.153
+      type: 'suite'
+      location: 'c:\\Users\\Administrator\\CodeBuddy\\20260606171322\\temp_extract\\TriCoreAgent\\tests\\unit\\message-processor.test.js:180:3'
+      failureType: 'subtestsFailed'
+      error: '1 subtest failed'
+      code: 'ERR_TEST_FAILURE'
+      ...
+    # Subtest: 活跃管道查询
+        # Subtest: 应返回未完成的管道
+        ok 1 - 应返回未完成的管道
+          ---
+          duration_ms: 0.2724
+          ...
+        # Subtest: 完成的管道不应在活跃列表中
+        ok 2 - 完成的管道不应在活跃列表中
+          ---
+          duration_ms: 0.1936
+          ...
+        # Subtest: 应按优先级排序
+        ok 3 - 应按优先级排序
+          ---
+          duration_ms: 0.183
+          ...
+        1..3
+    ok 7 - 活跃管道查询
+      ---
+      duration_ms: 0.7459
+      type: 'suite'
+      ...
+    # Subtest: 实体图
+        # Subtest: 应构建实体共现图
+        ok 1 - 应构建实体共现图
+          ---
+          duration_ms: 0.4057
+          ...
+        1..1
+    ok 8 - 实体图
+      ---
+      duration_ms: 0.4642
+      type: 'suite'
+      ...
+    # Subtest: DAG追踪
+        # Subtest: 应返回DAG数据
+        ok 1 - 应返回DAG数据
+          ---
+          duration_ms: 0.2988
+          ...
+        1..1
+    ok 9 - DAG追踪
+      ---
+      duration_ms: 0.3613
+      type: 'suite'
+      ...
+    # Subtest: 历史摘要
+        # Subtest: 应返回最近的消息摘要
+        ok 1 - 应返回最近的消息摘要
+          ---
+          duration_ms: 0.4594
+          ...
+        1..1
+    ok 10 - 历史摘要
+      ---
+      duration_ms: 0.5464
+      type: 'suite'
+      ...
+    # Subtest: 清理
+        # Subtest: 应清理过期的已完成管道
+        ok 1 - 应清理过期的已完成管道
+          ---
+          duration_ms: 0.2944
+          ...
+        1..1
+    ok 11 - 清理
+      ---
+      duration_ms: 0.3531
+      type: 'suite'
+      ...
+    # Subtest: 事件系统
+        # Subtest: 应触发消息接收事件
+        ok 1 - 应触发消息接收事件
+          ---
+          duration_ms: 0.2872
+          ...
+        # Subtest: 应触发消息分析事件
+        ok 2 - 应触发消息分析事件
+          ---
+          duration_ms: 0.2414
+          ...
+        # Subtest: 应触发消息完成事件
+        ok 3 - 应触发消息完成事件
+          ---
+          duration_ms: 0.25
+          ...
+        1..3
+    ok 12 - 事件系统
+      ---
+      duration_ms: 0.8873
+      type: 'suite'
+      ...
+    1..12
+not ok 1 - MessageProcessor
+  ---
+  duration_ms: 17.22
+  type: 'suite'
+  location: 'c:\\Users\\Administrator\\CodeBuddy\\20260606171322\\temp_extract\\TriCoreAgent\\tests\\unit\\message-processor.test.js:21:1'
+  failureType: 'subtestsFailed'
+  error: '1 subtest failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..1
+# tests 28
+# suites 13
+# pass 27
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 131.5931

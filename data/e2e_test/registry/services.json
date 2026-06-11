@@ -1,0 +1,24 @@
+{
+  "mitang-tricore-agent": [
+    {
+      "id": "mitang-tricore-agent_127.0.0.1_3721_1781015365521",
+      "host": "127.0.0.1",
+      "port": 3721,
+      "status": "STARTING",
+      "metadata": {
+        "version": "4.1.0",
+        "codename": "MitangTriCore",
+        "brandName": "蜜糖 TriCore Agent"
+      },
+      "tags": [
+        "mitang",
+        "tricore",
+        "agent",
+        "v4.1.0"
+      ],
+      "weight": 1,
+      "registeredAt": 1781015365522,
+      "lastHeartbeat": 1781015365522
+    }
+  ]
+}
